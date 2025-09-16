@@ -1,0 +1,29 @@
+# Node and package managers
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Next.js
+.next/
+out/
+.vercel/
+.turbo/
+
+# Builds / caches
+dist/
+build/
+.cache/
+.parcel-cache/
+coverage/
+
+# Env and local
+.env*
+.DS_Store
+*.local
+
+# Editors
+.vscode/
+.idea/
+

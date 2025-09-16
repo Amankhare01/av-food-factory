@@ -1,0 +1,10 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { --ring: theme(colors.nawab.gold); }
+* { outline-color: var(--ring); }
+
+html, body {
+  scroll-behavior: smooth;
+}
