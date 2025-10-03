@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { inter, marcellus } from './fonts';
 import NavBar from '@/components/NavBar';
 import Footer from '@/components/Footer';
+import WhatsAppButton from '@/components/WhatsAppButton';
 
 export const metadata: Metadata = {
   title: 'AV Food Factory — Lucknow Catering | Nawabi Dastarkhwan',
@@ -15,6 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${inter.variable} ${marcellus.variable}`}>
       <NavBar/>
       <body className="bg-nawab-ivory text-nawab-ink antialiased">{children}</body>
+      <WhatsAppButton/>
       <Footer/>
     </html>
   );

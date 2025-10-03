@@ -1,4 +1,37 @@
+'use client';
+import { useState } from 'react';
+
 export default function CTA() {
+  const [loading, setLoading] = useState(false);
+  const [ok, setOk] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [form, setForm] = useState({ name: '', phone: '', guests: '' });
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setErr(null);
+    if (!form.name || !form.phone) { setErr('Please add your name and phone'); return; }
+    setLoading(true);
+    try {
+      const res = await fetch('/api/lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...form, source: 'homepage-cta' })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setOk(true);
+        setForm({ name: '', phone: '', guests: '' });
+      } else {
+        setErr(data.error || 'Something went wrong');
+      }
+    } catch (e: any) {
+      setErr(e?.message || 'Network error');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <section id="cta" className="relative">
       <div className="absolute inset-0 -z-10 bg-gradient-to-br from-nawab-emerald to-nawab-emeraldDeep" />
@@ -6,13 +39,43 @@ export default function CTA() {
         <h2 className="font-heading text-3xl md:text-4xl">Planning an event in Lucknow?</h2>
         <p className="mt-2 text-white/90">Tell us your guest count and cuisine mood—we’ll send a curated quote in minutes.</p>
 
-        <form className="mt-6 grid md:grid-cols-[1fr_1fr_1fr_auto] gap-3">
-          <input required aria-label="Name" placeholder="Your name" className="h-12 rounded-xl px-4 text-black" />
-          <input required aria-label="Phone" placeholder="Phone / WhatsApp" className="h-12 rounded-xl px-4 text-black" />
-          <input aria-label="Guests" placeholder="Guests (approx.)" className="h-12 rounded-xl px-4 text-black" />
-          <button className="h-12 rounded-xl bg-nawab-gold px-6 font-medium text-ink hover:opacity-95">Get Quote</button>
-        </form>
+        {ok ? (
+          <p className="mt-6 rounded-xl bg-white/10 px-4 py-3">Thanks! We’ll reach out shortly on WhatsApp/Phone.</p>
+        ) : (
+          <form onSubmit={onSubmit} className="mt-6 grid md:grid-cols-[1fr_1fr_1fr_auto] gap-3">
+            <input
+              required
+              aria-label="Name"
+              placeholder="Your name"
+              className="h-12 rounded-xl px-4 text-black"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+            />
+            <input
+              required
+              aria-label="Phone"
+              placeholder="Phone / WhatsApp"
+              className="h-12 rounded-xl px-4 text-black"
+              value={form.phone}
+              onChange={(e) => setForm({ ...form, phone: e.target.value })}
+            />
+            <input
+              aria-label="Guests"
+              placeholder="Guests (approx.)"
+              className="h-12 rounded-xl px-4 text-black"
+              value={form.guests}
+              onChange={(e) => setForm({ ...form, guests: e.target.value })}
+            />
+            <button
+              disabled={loading}
+              className="h-12 rounded-xl bg-nawab-gold px-6 font-medium text-ink hover:opacity-95 disabled:opacity-60"
+            >
+              {loading ? 'Sending…' : 'Get Quote'}
+            </button>
+          </form>
+        )}
 
+        {err && <p className="mt-3 text-sm text-red-100/90">{err}</p>}
         <p className="mt-3 text-xs text-white/80">By submitting, you agree to be contacted on WhatsApp/SMS for your event.</p>
       </div>
     </section>

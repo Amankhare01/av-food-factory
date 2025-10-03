@@ -12,7 +12,7 @@ export default function NavBar() {
           <span className="h-9 w-9 rounded-full bg-nawab-emerald grid place-content-center text-white font-bold group-hover:drop-shadow-glow transition">
             AV
           </span>
-          <span className="font-heading text-xl tracking-wide font-bold">AV Food Factory</span>
+          <span className="font-heading text-xl tracking-wide">AV Food Factory</span>
         </Link>
 
         <button

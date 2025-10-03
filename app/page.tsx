@@ -4,7 +4,6 @@ import USPs from '@/components/USPs';
 import MenuPreview from '@/components/MenuPreview';
 import Testimonials from '@/components/Testimonials';
 import CTA from '@/components/CTA';
-import Footer from '@/components/Footer';
 
 export default function Page() {
   return (

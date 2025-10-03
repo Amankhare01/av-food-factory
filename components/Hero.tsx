@@ -3,7 +3,7 @@ import Image from 'next/image';
 export default function Hero() {
   return (
     <section className="relative overflow-hidden">
-      {/* subtle jaali pattern via radial dots */}
+      {/* subtle jaali pattern */}
       <div className="absolute inset-0 text-nawab-gold/20 [background-image:radial-gradient(currentColor_1px,transparent_1px)] [background-size:14px_14px]" aria-hidden />
 
       <div className="mx-auto max-w-7xl px-4 py-14 md:py-24 grid md:grid-cols-2 gap-10 items-center">
