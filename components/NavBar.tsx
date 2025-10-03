@@ -27,7 +27,7 @@ export default function NavBar() {
           <li><a href="#menu" className="hover:text-nawab-emerald">Menu</a></li>
           <li><a href="#services" className="hover:text-nawab-emerald">Services</a></li>
           <li><a href="#testimonials" className="hover:text-nawab-emerald">Reviews</a></li>
-          <li><a href="#contact" className="hover:text-nawab-emerald">Contact</a></li>
+          <li><a href="/contact" className="hover:text-nawab-emerald">Contact</a></li>
           <li>
             <a
               href="#cta"
