@@ -1,4 +1,4 @@
-import crypto from 'node:crypto';
+import crypto from "crypto";
 
 const ADMIN_USER = process.env.ADMIN_USER || 'admin';
 const ADMIN_PASS = process.env.ADMIN_PASS || 'changeme';
