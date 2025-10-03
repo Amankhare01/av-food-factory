@@ -20,9 +20,9 @@ export default function Footer() {
           <div>
           <h4 className="font-semibold">Contact</h4>
           <ul className="text-sm text-black/70 mt-2 space-y-1">
-            <li>+91 73172 75160</li>
+            <li>+91 788 056 1870</li>
             <li>support@avfoodfactory.com</li>
-            <li>Vikas Nagar, Lucknow</li>
+            <li>First Floor, Priyadarshini Apartment, 05, Wazir Hasan Road, Block I, Gokhale Vihar, Hazratganj, Lucknow, Uttar Pradesh 226001, Lucknow</li>
           </ul>
         </div>
         <div>
