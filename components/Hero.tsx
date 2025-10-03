@@ -2,7 +2,7 @@ import Image from 'next/image';
 
 export default function Hero() {
   return (
-    <section className="relative overflow-hidden">
+    <section className="relative overflow-hidden mt-5">
       {/* subtle jaali pattern */}
       <div className="absolute inset-0 text-nawab-gold/20 [background-image:radial-gradient(currentColor_1px,transparent_1px)] [background-size:14px_14px]" aria-hidden />
 
