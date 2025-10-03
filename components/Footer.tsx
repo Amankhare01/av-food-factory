@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function Footer() {
   return (
     <footer id="contact" className="border-t border-black/5 bg-white">
@@ -23,7 +25,21 @@ export default function Footer() {
           </ul>
         </div>
       </div>
-      <div className="text-center text-xs text-black/50 pb-6">© {new Date().getFullYear()} AV Food Factory • Lucknow</div>
+      <div className="flex justify-center gap-5">
+        <div className="text-center text-xs text-black/50 pb-6">© {new Date().getFullYear()} AV Food Factory • Lucknow</div>
+      <div className="text-center text-xs text-black/50 pb-6">
+      <p>
+            Developed by{" "}
+            <Link href="https://digipants.com/" target="blank" className="text-[#C5A46D] font-medium">DigiPants Network Pvt.</Link> ·{" "}
+            <Link
+              href="/privacy"
+              className="underline decoration-transparent hover:decoration-[#C5A46D]"
+            >
+              Privacy Policy
+            </Link>
+          </p>
+      </div>
+      </div>
     </footer>
   );
 }
