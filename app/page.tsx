@@ -9,13 +9,11 @@ import Footer from '@/components/Footer';
 export default function Page() {
   return (
     <>
-      <NavBar />
       <Hero />
       <USPs />
       <MenuPreview />
       <Testimonials />
       <CTA />
-      <Footer />
     </>
   );
 }

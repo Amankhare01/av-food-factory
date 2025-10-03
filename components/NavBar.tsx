@@ -6,13 +6,13 @@ export default function NavBar() {
   const [open, setOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-50 backdrop-blur bg-white/70 border-b border-black/5">
+    <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur bg-white/70 border-b border-black/5">
       <nav className="mx-auto max-w-7xl px-4 py-3 flex items-center justify-between">
         <Link href="/" className="group inline-flex items-center gap-2">
           <span className="h-9 w-9 rounded-full bg-nawab-emerald grid place-content-center text-white font-bold group-hover:drop-shadow-glow transition">
             AV
           </span>
-          <span className="font-heading text-xl tracking-wide">AV Food Factory</span>
+          <span className="font-heading text-xl tracking-wide font-bold">AV Food Factory</span>
         </Link>
 
         <button
