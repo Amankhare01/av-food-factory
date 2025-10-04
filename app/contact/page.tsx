@@ -25,7 +25,7 @@ export default function ContactPage() {
             </p>
             <ul className="space-y-2 text-gray-700">
               <li>📍 Vikas Nagar, Lucknow, Uttar Pradesh</li>
-              <li>📞 +91 73172 75160</li>
+              <li>📞 +91 78805 61870</li>
               <li>✉️ support@avfoodfactory.com</li>
               <li>🌐 www.avfoodfactory.com</li>
             </ul>
