@@ -143,7 +143,9 @@ export default function PrivacyPolicy() {
               </p>
               <p>Email: support@avfoodfactory.com</p>
               <p>Phone: +91 73172 75160</p>
-              <p>Lucknow, Uttar Pradesh, India</p>
+              <p>First Floor, Priyadarshini Apartment, 05, Wazir Hasan Road,
+                Hazratganj, Lucknow, Uttar Pradesh
+                226001, Lucknow</p>
             </div>
           </section>
         </div>

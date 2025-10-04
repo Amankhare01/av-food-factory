@@ -24,7 +24,9 @@ export default function ContactPage() {
               the following:
             </p>
             <ul className="space-y-2 text-gray-700">
-              <li>📍 Vikas Nagar, Lucknow, Uttar Pradesh</li>
+              <li>📍 First Floor, Priyadarshini Apartment, 05, Wazir Hasan Road,
+                Hazratganj, Lucknow, Uttar Pradesh
+                226001, Lucknow</li>
               <li>📞 +91 78805 61870</li>
               <li>✉️ support@avfoodfactory.com</li>
               <li>🌐 www.avfoodfactory.com</li>
