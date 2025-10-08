@@ -1,8 +1,40 @@
 "use client";
 
-import { FaPhoneAlt, FaEnvelope, FaClock } from "react-icons/fa";
+import { useState } from "react";
+import { FaPhoneAlt, FaEnvelope, FaClock, FaWhatsapp } from "react-icons/fa";
 
 export default function ContactPage() {
+  const [form, setForm] = useState({
+    name: "",
+    phone: "",
+    date: "",
+    type: "",
+    location: "",
+    message: "",
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!form.name || !form.phone) {
+      alert("Please fill your name and WhatsApp number before submitting.");
+      return;
+    }
+
+    const msg = encodeURIComponent(
+      `Hello AV Food Factory 👋,\n\nI’d like to inquire about catering services.\n\n` +
+        `👤 Name: ${form.name}\n` +
+        `📞 Contact: ${form.phone}\n` +
+        `📅 Event Date: ${form.date || "Not specified"}\n` +
+        `🎉 Event Type: ${form.type || "Not specified"}\n` +
+        `📍 Location: ${form.location || "Not specified"}\n\n` +
+        `📝 Message: ${form.message || "No additional details."}\n\nPlease get in touch with me for a quote.`
+    );
+
+    const whatsappURL = `https://wa.me/917880561870?text=${msg}`;
+    window.open(whatsappURL, "_blank");
+  };
+
   return (
     <section className="min-h-screen bg-[#faf6f1] py-16 px-6 md:px-12 lg:px-24">
       <div className="mt-[100px] max-w-6xl mx-auto grid md:grid-cols-2 gap-10 items-start">
@@ -37,11 +69,21 @@ export default function ContactPage() {
               <li>We’ll respond quickly with a tailored quote.</li>
             </ul>
           </div>
+
+          {/* Direct WhatsApp Button */}
+          <a
+            href="https://wa.me/917880561870?text=Hello%20AV%20Food%20Factory!%20I%27d%20like%20to%20discuss%20catering%20for%20my%20event."
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-6 inline-flex items-center gap-2 bg-[#25D366] text-white px-5 py-2.5 rounded-full hover:scale-105 transition-transform"
+          >
+            <FaWhatsapp className="text-xl" /> Chat on WhatsApp
+          </a>
         </div>
 
         {/* RIGHT CARD — Form */}
         <div className="bg-white shadow-lg rounded-2xl p-8">
-          <form className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-5">
             {/* Row 1 */}
             <div className="grid md:grid-cols-2 gap-4">
               <div>
@@ -51,15 +93,21 @@ export default function ContactPage() {
                   placeholder="Your full name"
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#0f766e] outline-none"
                   required
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">WhatsApp / Phone</label>
+                <label className="block text-sm font-medium mb-1">
+                  WhatsApp / Phone
+                </label>
                 <input
                   type="tel"
                   placeholder="+91 XXXXXXXXXX"
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#0f766e] outline-none"
                   required
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
                 />
               </div>
             </div>
@@ -67,39 +115,59 @@ export default function ContactPage() {
             {/* Row 2 */}
             <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Event Date</label>
+                <label className="block text-sm font-medium mb-1">
+                  Event Date
+                </label>
                 <input
                   type="date"
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#0f766e] outline-none"
+                  value={form.date}
+                  onChange={(e) => setForm({ ...form, date: e.target.value })}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Event Type</label>
+                <label className="block text-sm font-medium mb-1">
+                  Event Type
+                </label>
                 <input
                   type="text"
                   placeholder="Wedding, Corporate, etc."
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#0f766e] outline-none"
+                  value={form.type}
+                  onChange={(e) => setForm({ ...form, type: e.target.value })}
                 />
               </div>
             </div>
 
             {/* Row 3 */}
             <div>
-              <label className="block text-sm font-medium mb-1">Event Location</label>
+              <label className="block text-sm font-medium mb-1">
+                Event Location
+              </label>
               <input
                 type="text"
                 placeholder="Venue / City"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#0f766e] outline-none"
+                value={form.location}
+                onChange={(e) =>
+                  setForm({ ...form, location: e.target.value })
+                }
               />
             </div>
 
             {/* Row 4 */}
             <div>
-              <label className="block text-sm font-medium mb-1">Message / Menu Details</label>
+              <label className="block text-sm font-medium mb-1">
+                Message / Menu Details
+              </label>
               <textarea
                 rows={4}
                 placeholder="Tell us your menu preferences or any special requests..."
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#0f766e] outline-none"
+                value={form.message}
+                onChange={(e) =>
+                  setForm({ ...form, message: e.target.value })
+                }
               ></textarea>
             </div>
 
@@ -128,9 +196,9 @@ export default function ContactPage() {
             {/* Submit */}
             <button
               type="submit"
-              className="w-full bg-nawab-emerald text-white font-medium py-2.5 rounded-lg shadow hover:bg-nawab-emeraldDeep transition"
+              className="w-full bg-[#0f766e] text-white font-medium py-2.5 rounded-lg shadow hover:bg-[#115e59] transition"
             >
-              Submit
+              Send via WhatsApp
             </button>
           </form>
         </div>
