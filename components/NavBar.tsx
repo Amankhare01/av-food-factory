@@ -1,4 +1,5 @@
 'use client';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useState } from 'react';
 
@@ -9,11 +10,17 @@ export default function NavBar() {
     <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur bg-white/70 border-b border-black/5">
       <nav className="mx-auto max-w-7xl px-4 py-3 flex items-center justify-between">
         <Link href="/" className="group inline-flex items-center gap-2">
-          <span className="h-9 w-9 rounded-full bg-nawab-emerald grid place-content-center text-white font-bold group-hover:drop-shadow-glow transition">
-            AV
-          </span>
-          <span className="font-heading text-xl tracking-wide">AV Food Factory</span>
-        </Link>
+  <div className="relative w-[150px] h-[50px] sm:w-[150px] sm:h-[60px]">
+    <Image
+      src="/logo.svg"
+      alt="AV-TRADE Logo"
+      fill
+      className="object-contain"
+      priority
+    />
+  </div>
+</Link>
+
 
         <button
           className="md:hidden p-2 rounded hover:bg-black/5"
