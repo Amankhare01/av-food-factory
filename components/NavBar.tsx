@@ -52,7 +52,7 @@ export default function NavBar() {
             <li><a onClick={() => setOpen(false)} href="#menu">Menu</a></li>
             <li><a onClick={() => setOpen(false)} href="#services">Services</a></li>
             <li><a onClick={() => setOpen(false)} href="#testimonials">Reviews</a></li>
-            <li><a onClick={() => setOpen(false)} href="#contact">Contact</a></li>
+            <li><a onClick={() => setOpen(false)} href="/contact">Contact</a></li>
             <li>
               <a
                 onClick={() => setOpen(false)}

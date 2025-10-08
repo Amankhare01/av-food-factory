@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { FaWhatsapp, FaEnvelope, FaMapMarkerAlt } from "react-icons/fa";
 
@@ -9,12 +10,15 @@ export default function Footer() {
         {/* Brand Info */}
         <div>
           <Link href="/" className="group inline-flex items-center gap-2">
-            <span className="h-9 w-9 rounded-full bg-nawab-emerald grid place-content-center text-white font-bold group-hover:drop-shadow-glow transition">
-              AV
-            </span>
-            <span className="font-heading text-xl tracking-wide font-bold">
-              AV Food Factory
-            </span>
+              <div className="relative w-[150px] h-[50px] sm:w-[150px] sm:h-[60px]">
+                <Image
+                  src="/logo.svg"
+                  alt="AV-TRADE Logo"
+                  fill
+                  className="object-contain"
+                  priority
+                />
+              </div>
           </Link>
           <p className="text-sm text-black/70 mt-2 leading-relaxed">
             Dastarkhwan-style catering rooted in Lucknow’s Nawabi hospitality.
