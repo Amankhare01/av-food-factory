@@ -69,27 +69,32 @@ const services = [
 ];
 
 export default function ServicesPage() {
-  // Animation settings
+  // Animation variants
   const container = {
     hidden: {},
     visible: { transition: { staggerChildren: 0.15 } },
   };
 
+  // ✅ Use valid easing arrays (instead of "easeOut" string)
   const card = {
     hidden: { opacity: 0, y: 40 },
     visible: {
       opacity: 1,
       y: 0,
-      transition: { duration: 0.6, ease: "easeOut" },
+      transition: { duration: 0.6, ease: [0.25, 0.1, 0.25, 1] },
     },
   };
 
   const fadeIn = {
     hidden: { opacity: 0, y: 20 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: "easeOut" } },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: { duration: 0.8, ease: [0.25, 0.1, 0.25, 1] },
+    },
   };
 
-  // WhatsApp redirect function
+  // WhatsApp redirect
   const handleQuote = (serviceName: string) => {
     const message = encodeURIComponent(
       `Hello AV Food Factory 👋,\n\nI'm interested in your *${serviceName}* catering service.\nPlease share a customized quote and menu details.\n\n📞 Contact: [Your Number]\n👤 Name: [Your Name]`
@@ -104,57 +109,60 @@ export default function ServicesPage() {
       variants={fadeIn}
       className="bg-[#faf6f1] min-h-screen py-20 px-6 md:px-12 lg:px-24"
     >
+      {/* Header */}
       <motion.div
         initial="hidden"
         animate="visible"
         variants={fadeIn}
-        className="max-w-6xl mx-auto text-center mb-12"
+        className="max-w-6xl mx-auto text-center mb-14"
       >
-        <h1 className="text-4xl md:text-5xl mt-5 font-bold text-[#0f766e] mb-3">
+        <h1 className="text-4xl md:text-5xl font-bold text-[#0f766e] mb-4">
           Our Catering Services
         </h1>
-        <p className="text-gray-700 max-w-2xl mx-auto">
-          From grand weddings to intimate dinners, AV Food Factory brings authentic
-          Nawabi flavors and unmatched service to every celebration.
+        <p className="text-gray-700 max-w-2xl mx-auto leading-relaxed">
+          From grand weddings to intimate dinners, AV Food Factory brings authentic Nawabi flavors and unmatched hospitality to every celebration.
         </p>
       </motion.div>
 
-      {/* Cards */}
+      {/* Service Cards */}
       <motion.div
-        className="grid md:grid-cols-3 gap-8 max-w-7xl mx-auto"
+        className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8 max-w-7xl mx-auto"
         variants={container}
         initial="hidden"
         whileInView="visible"
-        viewport={{ once: true, amount: 0.15 }}
+        viewport={{ once: true, amount: 0.2 }}
       >
         {services.map((service) => (
           <motion.div
             key={service.name}
             variants={card}
-            className="group overflow-hidden rounded-3xl border border-black/10 bg-white shadow-sm hover:shadow-lg transition-transform hover:-translate-y-1"
+            className="group overflow-hidden rounded-3xl border border-black/10 bg-white shadow-md hover:shadow-xl transition-transform hover:-translate-y-2"
           >
+            {/* Image */}
             <div className="relative h-56">
               <Image
                 src={service.img}
                 alt={service.name}
                 fill
-                className="object-cover group-hover:scale-105 transition-transform duration-500"
+                className="object-cover group-hover:scale-105 transition-transform duration-700 ease-[cubic-bezier(0.25,0.1,0.25,1)]"
               />
             </div>
-            <div className="p-5">
-              <span className="inline-block text-[11px] tracking-widest uppercase text-[#C5A46D]">
+
+            {/* Content */}
+            <div className="p-6">
+              <span className="inline-block text-[11px] tracking-widest uppercase text-[#C5A46D] mb-1">
                 {service.tag}
               </span>
-              <h3 className="mt-1 font-semibold text-lg text-gray-900">
+              <h3 className="font-semibold text-lg text-gray-900 mb-2">
                 {service.name}
               </h3>
-              <p className="text-sm text-black/70 mt-1 leading-relaxed">
+              <p className="text-sm text-black/70 leading-relaxed mb-4">
                 {service.desc}
               </p>
 
               <button
                 onClick={() => handleQuote(service.name)}
-                className="mt-4 inline-flex items-center justify-center rounded-full bg-[#0f766e] text-white text-sm font-medium px-5 py-2 hover:bg-[#115e59] transition"
+                className="mt-auto inline-flex items-center justify-center rounded-full bg-[#0f766e] text-white text-sm font-medium px-5 py-2 hover:bg-[#115e59] transition"
               >
                 Get Quote on WhatsApp
               </button>
