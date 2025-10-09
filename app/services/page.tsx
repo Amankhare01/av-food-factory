@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { motion } from "framer-motion";
+import { motion, type Variants } from "framer-motion";
 
 const whatsappNumber = "917880561870";
 
@@ -34,25 +34,25 @@ const services = [
     name: "Outdoor & Live Counters",
     img: "https://5.imimg.com/data5/FE/AO/RG/SELLER-102373353/j008-jpg-500x500.jpg",
     tag: "Signature Experience",
-    desc: "From kebab stations to chaat corners—our live counters bring aroma, theatre, and excitement.",
+    desc: "From kebab stations to chaat corners, our live counters bring aroma, theatre, and excitement.",
   },
   {
     name: "Desserts & Sweets Table",
     img: "https://images.unsplash.com/photo-1578985545062-69928b1d9587?q=80&w=1600&auto=format&fit=crop",
     tag: "Sweet Endings",
-    desc: "Classic Indian desserts like Shahi Tukda, Phirni, and Rabri — handcrafted to end your meal on a royal note.",
+    desc: "Classic Indian desserts like Shahi Tukda, Phirni, and Rabri - handcrafted to end your meal on a royal note.",
   },
   {
     name: "Engagements & Anniversaries",
     img: "https://images.unsplash.com/photo-1573164713714-d95e436ab8d6?q=80&w=1600&auto=format&fit=crop",
     tag: "Memorable Affairs",
-    desc: "Celebrate love milestones with exquisite canapés, themed cuisines, and a bespoke presentation.",
+    desc: "Celebrate love milestones with exquisite canapes, themed cuisines, and a bespoke presentation.",
   },
   {
     name: "High Tea & Social Gatherings",
     img: "https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?q=80&w=1600&auto=format&fit=crop",
     tag: "Elegant Evenings",
-    desc: "Aromatic teas, delicate snacks, and gourmet finger foods — perfect for casual or business meets.",
+    desc: "Aromatic teas, delicate snacks, and gourmet finger foods - perfect for casual or business meets.",
   },
   {
     name: "Religious & Cultural Events",
@@ -69,35 +69,34 @@ const services = [
 ];
 
 export default function ServicesPage() {
-  // Animation variants
-  const container = {
+  const cubicEase: [number, number, number, number] = [0.25, 0.1, 0.25, 1];
+
+  const container: Variants = {
     hidden: {},
     visible: { transition: { staggerChildren: 0.15 } },
   };
 
-  // ✅ Use valid easing arrays (instead of "easeOut" string)
-  const card = {
+  const card: Variants = {
     hidden: { opacity: 0, y: 40 },
     visible: {
       opacity: 1,
       y: 0,
-      transition: { duration: 0.6, ease: [0.25, 0.1, 0.25, 1] },
+      transition: { duration: 0.6, ease: cubicEase },
     },
   };
 
-  const fadeIn = {
+  const fadeIn: Variants = {
     hidden: { opacity: 0, y: 20 },
     visible: {
       opacity: 1,
       y: 0,
-      transition: { duration: 0.8, ease: [0.25, 0.1, 0.25, 1] },
+      transition: { duration: 0.8, ease: cubicEase },
     },
   };
 
-  // WhatsApp redirect
   const handleQuote = (serviceName: string) => {
     const message = encodeURIComponent(
-      `Hello AV Food Factory 👋,\n\nI'm interested in your *${serviceName}* catering service.\nPlease share a customized quote and menu details.\n\n📞 Contact: [Your Number]\n👤 Name: [Your Name]`
+      `Hello AV Food Factory,\n\nI'm interested in your *${serviceName}* catering service.\nPlease share a customized quote and menu details.\n\nContact: [Your Number]\nName: [Your Name]`
     );
     window.open(`https://wa.me/${whatsappNumber}?text=${message}`, "_blank");
   };
