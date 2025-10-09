@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { motion } from "framer-motion";
+import { motion, type Variants } from "framer-motion";
 
 const services = [
   {
@@ -32,19 +32,20 @@ const services = [
     name: "Outdoor & Live Counters",
     img: "https://5.imimg.com/data5/FE/AO/RG/SELLER-102373353/j008-jpg-500x500.jpg",
     tag: "Signature Experience",
-    desc: "From kebab stations to chaat corners—our live food counters bring aroma and excitement to your event.",
+    desc: "From kebab stations to chaat corners, our live food counters bring aroma and excitement to your event.",
   },
   {
     name: "Desserts & Sweets Table",
     img: "https://images.unsplash.com/photo-1578985545062-69928b1d9587?q=80&w=1600&auto=format&fit=crop",
     tag: "Sweet Endings",
-    desc: "Indulge in classic Shahi Tukda, Phirni, or Gulab Jamun — handcrafted desserts to complete every meal.",
+    desc: "Indulge in classic Shahi Tukda, Phirni, or Gulab Jamun - handcrafted desserts to complete every meal.",
   },
 ];
 
 export default function ServicesPreview() {
-  // Animation variants
-  const container = {
+  const cubicEase: [number, number, number, number] = [0.25, 0.1, 0.25, 1];
+
+  const container: Variants = {
     hidden: {},
     visible: {
       transition: {
@@ -53,12 +54,12 @@ export default function ServicesPreview() {
     },
   };
 
-  const card = {
+  const card: Variants = {
     hidden: { opacity: 0, y: 40 },
     visible: {
       opacity: 1,
       y: 0,
-      transition: { duration: 0.6, ease: "easeOut" },
+      transition: { duration: 0.6, ease: cubicEase },
     },
   };
 
