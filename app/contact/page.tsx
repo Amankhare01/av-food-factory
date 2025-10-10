@@ -12,27 +12,42 @@ export default function ContactPage() {
     location: "",
     message: "",
   });
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!form.name || !form.phone) {
-      alert("Please fill your name and WhatsApp number before submitting.");
+      alert("Please fill your name and contact number before submitting.");
       return;
     }
 
-    const msg = encodeURIComponent(
-      `Hello AV Food Factory 👋,\n\nI’d like to inquire about catering services.\n\n` +
-        `👤 Name: ${form.name}\n` +
-        `📞 Contact: ${form.phone}\n` +
-        `📅 Event Date: ${form.date || "Not specified"}\n` +
-        `🎉 Event Type: ${form.type || "Not specified"}\n` +
-        `📍 Location: ${form.location || "Not specified"}\n\n` +
-        `📝 Message: ${form.message || "No additional details."}\n\nPlease get in touch with me for a quote.`
-    );
+    setLoading(true);
+    try {
+      const res = await fetch("/api/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
 
-    const whatsappURL = `https://wa.me/917880561870?text=${msg}`;
-    window.open(whatsappURL, "_blank");
+      if (res.ok) {
+        alert("✅ Thank you! Your details have been sent successfully.");
+        setForm({
+          name: "",
+          phone: "",
+          date: "",
+          type: "",
+          location: "",
+          message: "",
+        });
+      } else {
+        alert("❌ Failed to send email. Please try again later.");
+      }
+    } catch (err) {
+      alert("⚠️ Network error. Please check your internet connection.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -70,7 +85,7 @@ export default function ContactPage() {
             </ul>
           </div>
 
-          {/* Direct WhatsApp Button */}
+          {/* WhatsApp Shortcut (optional) */}
           <a
             href="https://wa.me/917880561870?text=Hello%20AV%20Food%20Factory!%20I%27d%20like%20to%20discuss%20catering%20for%20my%20event."
             target="_blank"
@@ -99,7 +114,7 @@ export default function ContactPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">
-                  WhatsApp / Phone
+                  Phone / WhatsApp
                 </label>
                 <input
                   type="tel"
@@ -119,6 +134,7 @@ export default function ContactPage() {
                   Event Date
                 </label>
                 <input
+                title="Date"
                   type="date"
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#0f766e] outline-none"
                   value={form.date}
@@ -173,7 +189,7 @@ export default function ContactPage() {
 
             {/* Consent */}
             <div className="flex items-start gap-2">
-              <input type="checkbox" className="mt-1" required />
+              <input title="Date" type="checkbox" className="mt-1" required />
               <p className="text-sm text-gray-600">
                 I agree to the{" "}
                 <a
@@ -196,9 +212,10 @@ export default function ContactPage() {
             {/* Submit */}
             <button
               type="submit"
-              className="w-full bg-[#0f766e] text-white font-medium py-2.5 rounded-lg shadow hover:bg-[#115e59] transition"
+              disabled={loading}
+              className="w-full bg-[#0f766e] text-white font-medium py-2.5 rounded-lg shadow hover:bg-[#115e59] transition disabled:opacity-70"
             >
-              Send via WhatsApp
+              {loading ? "Sending..." : "Send Inquiry"}
             </button>
           </form>
         </div>
