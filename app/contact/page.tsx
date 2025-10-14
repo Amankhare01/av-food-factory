@@ -3,22 +3,35 @@
 import { useState } from "react";
 import { FaPhoneAlt, FaEnvelope, FaClock, FaWhatsapp } from "react-icons/fa";
 
+type ContactForm = {
+  name: string;
+  phone: string;
+  email: string;
+  date: string;
+  type: string;
+  location: string;
+  message: string;
+};
+
+const initialForm: ContactForm = {
+  name: "",
+  phone: "",
+  email: "",
+  date: "",
+  type: "",
+  location: "",
+  message: "",
+};
+
 export default function ContactPage() {
-  const [form, setForm] = useState({
-    name: "",
-    phone: "",
-    date: "",
-    type: "",
-    location: "",
-    message: "",
-  });
+  const [form, setForm] = useState<ContactForm>(initialForm);
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     if (!form.name || !form.phone) {
-      alert("Please fill your name and contact number before submitting.");
+      alert("Please fill in your name and contact number before submitting.");
       return;
     }
 
@@ -31,20 +44,13 @@ export default function ContactPage() {
       });
 
       if (res.ok) {
-        alert("✅ Thank you! Your details have been sent successfully.");
-        setForm({
-          name: "",
-          phone: "",
-          date: "",
-          type: "",
-          location: "",
-          message: "",
-        });
+        alert("Thank you! Your details have been sent successfully.");
+        setForm(initialForm);
       } else {
-        alert("❌ Failed to send email. Please try again later.");
+        alert("Failed to send email. Please try again later.");
       }
-    } catch (err) {
-      alert("⚠️ Network error. Please check your internet connection.");
+    } catch (error) {
+      alert("Network error. Please check your internet connection.");
     } finally {
       setLoading(false);
     }
@@ -53,7 +59,6 @@ export default function ContactPage() {
   return (
     <section className="min-h-screen bg-[#faf6f1] py-16 px-6 md:px-12 lg:px-24">
       <div className="mt-[100px] max-w-6xl mx-auto grid md:grid-cols-2 gap-10 items-start">
-        {/* LEFT CARD — Info */}
         <div className="bg-white shadow-lg rounded-2xl p-8">
           <h2 className="text-4xl font-bold mb-6">
             Contact <span className="text-[#0f766e]">Us</span>
@@ -70,7 +75,7 @@ export default function ContactPage() {
             </li>
             <li className="flex items-center gap-3">
               <FaClock className="text-[#0f766e]" />
-              <span>Mon–Sat • 9am–8pm IST</span>
+              <span>Mon-Sat | 9am-8pm IST</span>
             </li>
           </ul>
 
@@ -81,11 +86,10 @@ export default function ContactPage() {
             <ul className="list-disc list-inside space-y-1 text-gray-700 text-sm">
               <li>Share your event date, time, and guest count.</li>
               <li>Let us know your menu preferences or cuisine theme.</li>
-              <li>We’ll respond quickly with a tailored quote.</li>
+              <li>We will respond quickly with a tailored quote.</li>
             </ul>
           </div>
 
-          {/* WhatsApp Shortcut (optional) */}
           <a
             href="https://wa.me/917880561870?text=Hello%20AV%20Food%20Factory!%20I%27d%20like%20to%20discuss%20catering%20for%20my%20event."
             target="_blank"
@@ -96,14 +100,15 @@ export default function ContactPage() {
           </a>
         </div>
 
-        {/* RIGHT CARD — Form */}
         <div className="bg-white shadow-lg rounded-2xl p-8">
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Row 1 */}
             <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Name</label>
+                <label className="block text-sm font-medium mb-1" htmlFor="name">
+                  Name
+                </label>
                 <input
+                  id="name"
                   type="text"
                   placeholder="Your full name"
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#0f766e] outline-none"
@@ -113,10 +118,11 @@ export default function ContactPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">
+                <label className="block text-sm font-medium mb-1" htmlFor="phone">
                   Phone / WhatsApp
                 </label>
                 <input
+                  id="phone"
                   type="tel"
                   placeholder="+91 XXXXXXXXXX"
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#0f766e] outline-none"
@@ -126,15 +132,26 @@ export default function ContactPage() {
                 />
               </div>
             </div>
-
-            {/* Row 2 */}
+            <div>
+              <label className="block text-sm font-medium mb-1" htmlFor="email">
+                Email
+              </label>
+              <input
+                id="location"
+                type="email"
+                placeholder="Enter your email"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#0f766e] outline-none"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+              />
+            </div>
             <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1">
+                <label className="block text-sm font-medium mb-1" htmlFor="event-date">
                   Event Date
                 </label>
                 <input
-                title="Date"
+                  id="event-date"
                   type="date"
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#0f766e] outline-none"
                   value={form.date}
@@ -142,10 +159,11 @@ export default function ContactPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">
+                <label className="block text-sm font-medium mb-1" htmlFor="event-type">
                   Event Type
                 </label>
                 <input
+                  id="event-type"
                   type="text"
                   placeholder="Wedding, Corporate, etc."
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#0f766e] outline-none"
@@ -155,42 +173,42 @@ export default function ContactPage() {
               </div>
             </div>
 
-            {/* Row 3 */}
             <div>
-              <label className="block text-sm font-medium mb-1">
+              <label className="block text-sm font-medium mb-1" htmlFor="location">
                 Event Location
               </label>
               <input
+                id="location"
                 type="text"
                 placeholder="Venue / City"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#0f766e] outline-none"
                 value={form.location}
-                onChange={(e) =>
-                  setForm({ ...form, location: e.target.value })
-                }
+                onChange={(e) => setForm({ ...form, location: e.target.value })}
               />
             </div>
 
-            {/* Row 4 */}
             <div>
-              <label className="block text-sm font-medium mb-1">
+              <label className="block text-sm font-medium mb-1" htmlFor="message">
                 Message / Menu Details
               </label>
               <textarea
+                id="message"
                 rows={4}
                 placeholder="Tell us your menu preferences or any special requests..."
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#0f766e] outline-none"
                 value={form.message}
-                onChange={(e) =>
-                  setForm({ ...form, message: e.target.value })
-                }
+                onChange={(e) => setForm({ ...form, message: e.target.value })}
               ></textarea>
             </div>
 
-            {/* Consent */}
             <div className="flex items-start gap-2">
-              <input title="Date" type="checkbox" className="mt-1" required />
-              <p className="text-sm text-gray-600">
+              <input
+                id="consent"
+                type="checkbox"
+                className="mt-1"
+                required
+              />
+              <label htmlFor="consent" className="text-sm text-gray-600">
                 I agree to the{" "}
                 <a
                   href="/terms"
@@ -206,10 +224,9 @@ export default function ContactPage() {
                   Privacy Policy
                 </a>
                 .
-              </p>
+              </label>
             </div>
 
-            {/* Submit */}
             <button
               type="submit"
               disabled={loading}

@@ -16,7 +16,6 @@ export default function Page() {
 
   return (
     <>
-      {/* You can also add your <NavBar /> here if it's not global */}
       <motion.section
         initial="hidden"
         animate="visible"
