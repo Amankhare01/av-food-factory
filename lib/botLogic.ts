@@ -7,24 +7,54 @@ export const MENU = [
     categoryId: "starters",
     title: "Starters",
     items: [
-      { id: "s_paneer_tikka", name: "Paneer Tikka", price: 180, img: "https://.../paneer.jpg" },
-      { id: "s_chicken_65", name: "Chicken 65", price: 200, img: "https://.../chicken65.jpg" },
+      {
+        id: "s_paneer_tikka",
+        name: "Paneer Tikka",
+        price: 180,
+        img: "https://.../paneer.jpg",
+      },
+      {
+        id: "s_chicken_65",
+        name: "Chicken 65",
+        price: 200,
+        img: "https://.../chicken65.jpg",
+      },
     ],
   },
   {
     categoryId: "main",
     title: "Main Course",
     items: [
-      { id: "m_butter_chicken", name: "Butter Chicken", price: 250, img: "https://.../butterchicken.jpg" },
-      { id: "m_paneer_butter", name: "Paneer Butter Masala", price: 220, img: "https://.../paneerbutter.jpg" },
+      {
+        id: "m_butter_chicken",
+        name: "Butter Chicken",
+        price: 250,
+        img: "https://.../butterchicken.jpg",
+      },
+      {
+        id: "m_paneer_butter",
+        name: "Paneer Butter Masala",
+        price: 220,
+        img: "https://.../paneerbutter.jpg",
+      },
     ],
   },
   {
     categoryId: "desserts",
     title: "Desserts",
     items: [
-      { id: "d_gulab", name: "Gulab Jamun", price: 80, img: "https://.../gulab.jpg" },
-      { id: "d_brownie", name: "Brownie with Ice Cream", price: 120, img: "https://.../brownie.jpg" },
+      {
+        id: "d_gulab",
+        name: "Gulab Jamun",
+        price: 80,
+        img: "https://.../gulab.jpg",
+      },
+      {
+        id: "d_brownie",
+        name: "Brownie with Ice Cream",
+        price: 120,
+        img: "https://.../brownie.jpg",
+      },
     ],
   },
 ];
@@ -59,9 +89,12 @@ export function buildButtons(to: string, bodyText: string) {
       action: {
         buttons: [
           { type: "reply", reply: { id: "view_menu", title: "🍽️ View Menu" } },
-        //   { type: "reply", reply: { id: "my_cart", title: "🛒 My Cart" } },
+          //   { type: "reply", reply: { id: "my_cart", title: "🛒 My Cart" } },
           { type: "reply", reply: { id: "offers", title: "💥 Offers" } },
-          { type: "reply", reply: { id: "place_order", title: "✅ Place Order" } },
+          {
+            type: "reply",
+            reply: { id: "place_order", title: "✅ Place Order" },
+          },
         ],
       },
     },
@@ -83,7 +116,13 @@ export function buildCategoryList(to: string) {
         button: "View Categories",
         sections: MENU.map((cat) => ({
           title: cat.title,
-          rows: [{ id: `cat_${cat.categoryId}`, title: cat.title, description: `${cat.items.length} items` }],
+          rows: [
+            {
+              id: `cat_${cat.categoryId}`,
+              title: cat.title,
+              description: `${cat.items.length} items`,
+            },
+          ],
         })),
       },
     },
@@ -108,7 +147,11 @@ export function buildItemList(to: string, categoryId: string) {
         sections: [
           {
             title: cat.title,
-            rows: cat.items.map((i) => ({ id: `item_${i.id}`, title: i.name, description: `₹${i.price}` })),
+            rows: cat.items.map((i) => ({
+              id: `item_${i.id}`,
+              title: i.name,
+              description: `₹${i.price}`,
+            })),
           },
         ],
       },
@@ -125,7 +168,10 @@ export function buildItemCard(to: string, itemId: string) {
     messaging_product: "whatsapp",
     to,
     type: "image",
-    image: { link: it.img, caption: `*${it.name}* — ₹${it.price}\n\nChoose an action:` },
+    image: {
+      link: it.img,
+      caption: `*${it.name}* — ₹${it.price}\n\nChoose an action:`,
+    },
     // We will follow with a buttons interactive message (text + "Add to Cart")
   };
 }
@@ -161,7 +207,12 @@ export function buildCartView(to: string, session: any) {
       text: { body: "🛒 Your cart is empty. Tap *View Menu* to add items." },
     };
   }
-  const lines = cart.map((c: any, idx: number) => `${idx + 1}. ${c.name} x${c.qty} — ₹${c.price * c.qty}`).join("\n");
+  const lines = cart
+    .map(
+      (c: any, idx: number) =>
+        `${idx + 1}. ${c.name} x${c.qty} — ₹${c.price * c.qty}`
+    )
+    .join("\n");
   const subtotal = cart.reduce((s: number, c: any) => s + c.price * c.qty, 0);
   return {
     messaging_product: "whatsapp",
@@ -172,8 +223,14 @@ export function buildCartView(to: string, session: any) {
       body: { text: `🛒 Your Cart\n\n${lines}\n\nSubtotal: ₹${subtotal}` },
       action: {
         buttons: [
-          { type: "reply", reply: { id: "place_order", title: "✅ Place Order" } },
-          { type: "reply", reply: { id: "clear_cart", title: "🧹 Clear Cart" } },
+          {
+            type: "reply",
+            reply: { id: "place_order", title: "✅ Place Order" },
+          },
+          {
+            type: "reply",
+            reply: { id: "clear_cart", title: "🧹 Clear Cart" },
+          },
         ],
       },
     },
@@ -200,38 +257,29 @@ export function buildDeliveryTypeButtons(to: string) {
 }
 
 // Ask user to share location & contact
-export function buildShareLocationContact(to: string, deliveryType: "delivery" | "pickup") {
+export function buildShareLocationContact(
+  to: string,
+  deliveryType: "delivery" | "pickup"
+) {
   if (deliveryType === "delivery") {
     return {
       messaging_product: "whatsapp",
       to,
       type: "text",
       text: {
-        body:
-          "🚚 Please type your *delivery address* and *contact number* in this format:\n\n" +
-          "*Name:* John Doe\n" +
-          "*Address:* 221B Baker Street, London\n" +
-          "*Phone:* +91XXXXXXXXXX\n\n" +
-          "After sending your details, tap *Confirm Order* ✅",
+        body: "🚚 To get your order delivered, please *share your location* (tap attachment → Location) and *share your contact* (tap attachment → Contact). \n\nAfter sharing both, tap *Confirm Order*.",
       },
     };
   }
-
-  // For pickup
   return {
     messaging_product: "whatsapp",
     to,
     type: "text",
     text: {
-      body:
-        "🏃 Please type your *name* and *contact number* in this format:\n\n" +
-        "*Name:* John Doe\n" +
-        "*Phone:* +91XXXXXXXXXX\n\n" +
-        "After sending your details, tap *Confirm Order* ✅",
+      body: "🏃 For pickup, please *share your contact* (tap attachment → Contact) so we can confirm pickup details.",
     },
   };
 }
-
 
 // Build final confirm order button
 export function buildConfirmOrderButton(to: string) {
@@ -244,7 +292,10 @@ export function buildConfirmOrderButton(to: string) {
       body: { text: "Ready to confirm order?" },
       action: {
         buttons: [
-          { type: "reply", reply: { id: "confirm_order", title: "✅ Confirm Order" } },
+          {
+            type: "reply",
+            reply: { id: "confirm_order", title: "✅ Confirm Order" },
+          },
           { type: "reply", reply: { id: "cancel_order", title: "❌ Cancel" } },
         ],
       },
