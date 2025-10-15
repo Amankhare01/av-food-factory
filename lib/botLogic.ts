@@ -208,19 +208,30 @@ export function buildShareLocationContact(to: string, deliveryType: "delivery" |
       type: "text",
       text: {
         body:
-          "🚚 To get your order delivered, please *share your location* (tap attachment → Location) and *share your contact* (tap attachment → Contact). \n\nAfter sharing both, tap *Confirm Order*.",
+          "🚚 Please type your *delivery address* and *contact number* in this format:\n\n" +
+          "*Name:* John Doe\n" +
+          "*Address:* 221B Baker Street, London\n" +
+          "*Phone:* +91XXXXXXXXXX\n\n" +
+          "After sending your details, tap *Confirm Order* ✅",
       },
     };
   }
+
+  // For pickup
   return {
     messaging_product: "whatsapp",
     to,
     type: "text",
     text: {
-      body: "🏃 For pickup, please *share your contact* (tap attachment → Contact) so we can confirm pickup details.",
+      body:
+        "🏃 Please type your *name* and *contact number* in this format:\n\n" +
+        "*Name:* John Doe\n" +
+        "*Phone:* +91XXXXXXXXXX\n\n" +
+        "After sending your details, tap *Confirm Order* ✅",
     },
   };
 }
+
 
 // Build final confirm order button
 export function buildConfirmOrderButton(to: string) {
