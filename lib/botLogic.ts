@@ -1,5 +1,5 @@
 // lib/botLogic.ts
-import { Order } from "@/lib/mongodb"; // only for types if needed
+import { Order } from "@/lib/mongodb"; 
 import { connectDB } from "@/lib/mongodb";
 import { Session } from "@/lib/sessionModel";
 

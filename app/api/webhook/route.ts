@@ -14,7 +14,7 @@ import {
   buildConfirmOrderButton,
 } from "@/lib/botLogic";
 
-// ✅ WhatsApp webhook verification (GET)
+// ✅ Webhook verification
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
     const challenge = searchParams.get("hub.challenge");
 
     if (mode === "subscribe" && token === process.env.META_VERIFY_TOKEN) {
+      console.log("✅ Webhook verified successfully");
       return new NextResponse(challenge, { status: 200 });
     }
     return new NextResponse("Forbidden", { status: 403 });
@@ -32,29 +33,34 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// ✅ Helper: send message via WhatsApp Cloud API
+// ✅ Send WhatsApp Message Helper
 async function sendWhatsAppMessage(msg: any) {
-  const res = await fetch(
-    `https://graph.facebook.com/v20.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.META_ACCESS_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(msg),
-    }
-  );
+  try {
+    console.log("📤 Sending WhatsApp message:", JSON.stringify(msg, null, 2));
 
-  if (!res.ok) {
+    const res = await fetch(
+      `https://graph.facebook.com/v20.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.META_ACCESS_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(msg),
+      }
+    );
+
     const txt = await res.text();
-    console.error("❌ Failed to send WhatsApp message:", res.status, txt);
-  }
+    console.log("📥 WhatsApp API Response:", res.status, txt);
 
-  return res;
+    if (!res.ok) console.error("❌ WhatsApp send error:", txt);
+    return res;
+  } catch (err) {
+    console.error("❌ sendWhatsAppMessage() failed:", err);
+  }
 }
 
-// ✅ Helper: get or create persistent session
+// ✅ Persistent Session Helper
 async function getSession(from: string) {
   await connectDB();
   let session = await Session.findOne({ userPhone: from });
@@ -70,18 +76,26 @@ async function getSession(from: string) {
   return session;
 }
 
-// ✅ Webhook POST handler
+// ✅ Webhook POST Handler
 export async function POST(req: NextRequest) {
   try {
+    console.log("🚀 WhatsApp Webhook Triggered");
     const body = await req.json();
-    console.log("📩 Incoming webhook:", JSON.stringify(body, null, 2));
+    console.log("📩 Incoming webhook body:", JSON.stringify(body, null, 2));
 
-    const message = body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
-    if (!message) return NextResponse.json("EVENT_RECEIVED", { status: 200 });
+    // Extract message safely
+    const change = body.entry?.[0]?.changes?.[0];
+    const message = change?.value?.messages?.[0];
+    if (!message) {
+      console.log("⚠️ No message payload (status update or template)");
+      return NextResponse.json("EVENT_RECEIVED", { status: 200 });
+    }
 
     const from = message.from;
-    const session = await getSession(from);
+    const messageType = message.type;
+    console.log("👤 From:", from, "| Type:", messageType);
 
+    const session = await getSession(from);
     const interactiveReply =
       message?.interactive?.button_reply?.id ||
       message?.interactive?.list_reply?.id;
@@ -89,46 +103,45 @@ export async function POST(req: NextRequest) {
     const location = message?.location;
     const contacts = message?.contacts;
 
-    // 🧩 Handle interactive replies
+    // 1️⃣ Handle interactive button/list replies
     if (interactiveReply) {
       console.log("🎯 Interactive reply:", interactiveReply);
 
-      // --- Main buttons
       if (interactiveReply === "view_menu") {
         await sendWhatsAppMessage(buildCategoryList(from));
-        return NextResponse.json("OK");
+        return NextResponse.json("EVENT_RECEIVED", { status: 200 });
       }
+
       if (interactiveReply === "my_cart") {
         await sendWhatsAppMessage(buildCartView(from, session));
-        return NextResponse.json("OK");
+        return NextResponse.json("EVENT_RECEIVED", { status: 200 });
       }
+
       if (interactiveReply === "offers") {
         await sendWhatsAppMessage({
           messaging_product: "whatsapp",
           to: from,
           type: "text",
           text: {
-            body:
-              "🎉 Offers: Buy 1 Get 1 on Pizzas (Mon–Thu). 20% off above ₹1000.",
+            body: "🎉 Offers: Buy 1 Get 1 on Pizzas (Mon–Thu). 20% off above ₹1000.",
           },
         });
-        return NextResponse.json("OK");
+        return NextResponse.json("EVENT_RECEIVED", { status: 200 });
       }
+
       if (interactiveReply === "place_order") {
         session.pendingAction = "awaiting_delivery_type";
         await session.save();
         await sendWhatsAppMessage(buildDeliveryTypeButtons(from));
-        return NextResponse.json("OK");
+        return NextResponse.json("EVENT_RECEIVED", { status: 200 });
       }
 
-      // --- Category selection
       if (interactiveReply.startsWith("cat_")) {
         const catId = interactiveReply.replace("cat_", "");
         await sendWhatsAppMessage(buildItemList(from, catId));
-        return NextResponse.json("OK");
+        return NextResponse.json("EVENT_RECEIVED", { status: 200 });
       }
 
-      // --- Item selection
       if (interactiveReply.startsWith("item_")) {
         const itemId = interactiveReply.replace("item_", "");
         const card = buildItemCard(from, itemId);
@@ -145,24 +158,24 @@ export async function POST(req: NextRequest) {
             text: { body: "Item not found." },
           });
         }
-        return NextResponse.json("OK");
+        return NextResponse.json("EVENT_RECEIVED", { status: 200 });
       }
 
-      // --- Quantity buttons
       if (interactiveReply.startsWith("qty_")) {
         const parts = interactiveReply.split("_");
         const qty = parseInt(parts[1], 10);
         const itemId = parts.slice(2).join("_");
         const flat = MENU.flatMap((c) => c.items);
         const it = flat.find((x) => x.id === itemId);
+
         if (!it) {
           await sendWhatsAppMessage({
             messaging_product: "whatsapp",
             to: from,
             type: "text",
-            text: { body: "Item not found for adding to cart." },
+            text: { body: "Item not found." },
           });
-          return NextResponse.json("OK");
+          return NextResponse.json("EVENT_RECEIVED", { status: 200 });
         }
 
         const existing = session.cart.find((c: any) => c.id === it.id);
@@ -177,10 +190,9 @@ export async function POST(req: NextRequest) {
           text: { body: `✅ Added ${qty} x ${it.name} to your cart.` },
         });
         await sendWhatsAppMessage(buildCartView(from, session));
-        return NextResponse.json("OK");
+        return NextResponse.json("EVENT_RECEIVED", { status: 200 });
       }
 
-      // --- Delivery type
       if (interactiveReply === "delivery" || interactiveReply === "pickup") {
         session.deliveryType = interactiveReply;
         session.pendingAction =
@@ -190,19 +202,17 @@ export async function POST(req: NextRequest) {
         await session.save();
         await sendWhatsAppMessage(buildShareLocationContact(from, session.deliveryType));
         await sendWhatsAppMessage(buildConfirmOrderButton(from));
-        return NextResponse.json("OK");
+        return NextResponse.json("EVENT_RECEIVED", { status: 200 });
       }
 
-      // --- Confirm order
       if (interactiveReply === "confirm_order") {
-        console.log("🟢 Confirm order clicked", {
+        console.log("🟢 Confirm order clicked:", {
           deliveryType: session.deliveryType,
           meta: session.tempOrderMeta,
           cart: session.cart,
         });
 
         const meta = session.tempOrderMeta || {};
-
         if (session.deliveryType === "pickup") {
           if (!meta.contact?.phone) {
             await sendWhatsAppMessage({
@@ -210,63 +220,45 @@ export async function POST(req: NextRequest) {
               to: from,
               type: "text",
               text: {
-                body:
-                  "📞 Please share your *contact* (tap attachment → Contact) before confirming pickup.",
+                body: "📞 Please share your *contact* (attachment → Contact) before confirming pickup.",
               },
             });
-            return NextResponse.json("OK");
+            return NextResponse.json("EVENT_RECEIVED", { status: 200 });
           }
           await saveOrderFromSession(from, session);
-          return NextResponse.json("OK");
+          return NextResponse.json("EVENT_RECEIVED", { status: 200 });
         }
 
         if (session.deliveryType === "delivery") {
-          if (!meta.contact?.phone) {
+          if (!meta.contact?.phone || !meta.location?.lat) {
             await sendWhatsAppMessage({
               messaging_product: "whatsapp",
               to: from,
               type: "text",
               text: {
-                body:
-                  "📞 Please share your *contact* (tap attachment → Contact).",
+                body: "📍 Please share your *location* and *contact* before confirming.",
               },
             });
-            return NextResponse.json("OK");
-          }
-          if (!meta.location?.lat) {
-            await sendWhatsAppMessage({
-              messaging_product: "whatsapp",
-              to: from,
-              type: "text",
-              text: {
-                body:
-                  "📍 Please share your *location* (tap attachment → Location).",
-              },
-            });
-            return NextResponse.json("OK");
+            return NextResponse.json("EVENT_RECEIVED", { status: 200 });
           }
 
           await saveOrderFromSession(from, session);
-          return NextResponse.json("OK");
+          return NextResponse.json("EVENT_RECEIVED", { status: 200 });
         }
-
-        return NextResponse.json("OK");
       }
 
-      // --- Cancel order
       if (interactiveReply === "cancel_order") {
         await Session.deleteOne({ userPhone: from });
         await sendWhatsAppMessage({
           messaging_product: "whatsapp",
           to: from,
           type: "text",
-          text: { body: "❌ Order cancelled and cart cleared." },
+          text: { body: "❌ Order cancelled. Cart cleared." },
         });
         await sendWhatsAppMessage(buildButtons(from, "What would you like to do next?"));
-        return NextResponse.json("OK");
+        return NextResponse.json("EVENT_RECEIVED", { status: 200 });
       }
 
-      // --- Clear cart
       if (interactiveReply === "clear_cart") {
         session.cart = [];
         await session.save();
@@ -277,11 +269,11 @@ export async function POST(req: NextRequest) {
           text: { body: "🧹 Cart cleared." },
         });
         await sendWhatsAppMessage(buildButtons(from, "Anything else?"));
-        return NextResponse.json("OK");
+        return NextResponse.json("EVENT_RECEIVED", { status: 200 });
       }
     }
 
-    // 📍 Location shared
+    // 2️⃣ Handle location
     if (location) {
       session.tempOrderMeta.location = {
         lat: location.latitude,
@@ -292,17 +284,14 @@ export async function POST(req: NextRequest) {
         messaging_product: "whatsapp",
         to: from,
         type: "text",
-        text: {
-          body:
-            "📍 Location received. Please share contact (tap attachment → Contact) or tap *Confirm Order*.",
-        },
+        text: { body: "📍 Location received! Please share contact next." },
       });
       await sendWhatsAppMessage(buildConfirmOrderButton(from));
-      return NextResponse.json("OK");
+      return NextResponse.json("EVENT_RECEIVED", { status: 200 });
     }
 
-    // 📞 Contact shared
-    if (contacts && Array.isArray(contacts) && contacts.length > 0) {
+    // 3️⃣ Handle contact
+    if (contacts?.length > 0) {
       const c = contacts[0];
       const phone = c.phones?.[0]?.phone || c.wa_id;
       const name =
@@ -315,50 +304,50 @@ export async function POST(req: NextRequest) {
         messaging_product: "whatsapp",
         to: from,
         type: "text",
-        text: {
-          body: `📞 Contact received: ${name} (${phone}).\nIf everything looks good, tap *Confirm Order*.`,
-        },
+        text: { body: `📞 Contact received: ${name} (${phone})` },
       });
       await sendWhatsAppMessage(buildConfirmOrderButton(from));
-      return NextResponse.json("OK");
+      return NextResponse.json("EVENT_RECEIVED", { status: 200 });
     }
 
-    // 🗣️ Normal text
-    if (text) {
-      if (/hi|hello|namaste|hey/i.test(text)) {
-        await sendWhatsAppMessage(
-          buildButtons(from, "👋 Welcome to AV Food Factory! Choose an option")
-        );
-        return NextResponse.json("OK");
-      }
+    // 4️⃣ Normal text message or fallback
+    const userText =
+      text ||
+      message?.interactive?.button_reply?.title ||
+      message?.interactive?.list_reply?.title ||
+      message?.button?.text ||
+      "[unknown message type]";
 
+    console.log("🗣️ Received text:", userText);
+
+    if (/hi|hello|hey|namaste/i.test(userText)) {
+      await sendWhatsAppMessage(
+        buildButtons(from, "👋 Welcome to AV Food Factory! Choose an option:")
+      );
+    } else {
       await sendWhatsAppMessage(
         buildButtons(from, "I work best with buttons. Choose an option:")
       );
-      return NextResponse.json("OK");
     }
 
-    return NextResponse.json("OK");
+    return NextResponse.json("EVENT_RECEIVED", { status: 200 });
   } catch (err) {
-    console.error("Webhook handler error:", err);
+    console.error("❌ Webhook handler error:", err);
     return new NextResponse("Error", { status: 500 });
   }
 }
 
-// ✅ Save order to DB + clear session
+// ✅ Save order & clear session
 async function saveOrderFromSession(from: string, session: any) {
   try {
     await connectDB();
-
     const cart = session.cart || [];
     if (cart.length === 0) {
       await sendWhatsAppMessage({
         messaging_product: "whatsapp",
         to: from,
         type: "text",
-        text: {
-          body: "Your cart is empty. Add items before placing an order.",
-        },
+        text: { body: "🛒 Your cart is empty. Add items before placing an order." },
       });
       return;
     }
@@ -373,7 +362,7 @@ async function saveOrderFromSession(from: string, session: any) {
       })),
       subtotal,
       deliveryType: session.deliveryType || "delivery",
-      contact: session.tempOrderMeta.contact || { name: "", phone: "" },
+      contact: session.tempOrderMeta.contact || {},
       location: session.tempOrderMeta.location || null,
     });
 
@@ -384,7 +373,7 @@ async function saveOrderFromSession(from: string, session: any) {
       to: from,
       type: "text",
       text: {
-        body: `✅ Order Received!\nOrder ID: ${orderDoc._id}\nSubtotal: ₹${orderDoc.subtotal}\nWe’ll confirm shortly. Thank you for ordering from AV Food Factory!`,
+        body: `✅ Order received!\nOrder ID: ${orderDoc._id}\nSubtotal: ₹${orderDoc.subtotal}\nWe'll confirm shortly.`,
       },
     });
 
@@ -405,8 +394,7 @@ async function saveOrderFromSession(from: string, session: any) {
       to: from,
       type: "text",
       text: {
-        body:
-          "⚠️ Sorry, we couldn't save your order. Please try again later.",
+        body: "⚠️ Sorry, we couldn't save your order. Please try again later.",
       },
     });
   }
