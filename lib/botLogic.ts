@@ -89,12 +89,12 @@ export function buildButtons(to: string, bodyText: string) {
       action: {
         buttons: [
           { type: "reply", reply: { id: "view_menu", title: "🍽️ View Menu" } },
-          //   { type: "reply", reply: { id: "my_cart", title: "🛒 My Cart" } },
+            { type: "reply", reply: { id: "my_cart", title: "🛒 My Cart" } },
           { type: "reply", reply: { id: "offers", title: "💥 Offers" } },
-          {
-            type: "reply",
-            reply: { id: "place_order", title: "✅ Place Order" },
-          },
+          // {
+          //   type: "reply",
+          //   reply: { id: "place_order", title: "✅ Place Order" },
+          // },
         ],
       },
     },
