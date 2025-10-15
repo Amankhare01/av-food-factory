@@ -1,5 +1,8 @@
 // lib/botLogic.ts
 import { Order } from "@/lib/mongodb"; // only for types if needed
+import { connectDB } from "@/lib/mongodb";
+import { Session } from "@/lib/sessionModel";
+
 
 // ----- MENU (edit items/prices/images) -----
 export const MENU = [
@@ -65,17 +68,22 @@ export const MENU = [
 export const sessions: Record<string, any> = {};
 
 // Helper: get or create session by sender phone
-export function getSession(sender: string) {
-  if (!sessions[sender]) {
-    sessions[sender] = {
-      cart: [], // { id, name, price, qty }
-      pendingAction: null, // used to track flows (e.g., waiting_for_contact, waiting_for_location, waiting_for_qty for item X)
+export async function getSession(sender: string) {
+  await connectDB();
+
+  let session = await Session.findOne({ userPhone: sender });
+  if (!session) {
+    session = await Session.create({
+      userPhone: sender,
+      cart: [],
+      pendingAction: null,
       deliveryType: null,
       tempOrderMeta: {},
-    };
+    });
   }
-  return sessions[sender];
+  return session;
 }
+
 
 // Build a button interactive message (reply buttons)
 export function buildButtons(to: string, bodyText: string) {
