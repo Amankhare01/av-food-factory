@@ -1,222 +1,324 @@
+// app/api/webhook/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { connectDB, Order } from "@/lib/mongodb";
+import {
+  MENU,
+  getSession,
+  buildButtons,
+  buildCategoryList,
+  buildItemList,
+  buildItemCard,
+  buildAddToCartButtons,
+  buildCartView,
+  buildDeliveryTypeButtons,
+  buildShareLocationContact,
+  buildConfirmOrderButton,
+  sessions,
+} from "@/lib/botLogic";
 
-// 🍴 Menu data (with images)
-const menu = [
-  {
-    category: "Starters",
-    items: [
-      { name: "Paneer Tikka", price: "₹180", img: "https://images.unsplash.com/photo-1604908176997-0553a7d31e2d?w=600" },
-      { name: "Chicken 65", price: "₹200", img: "https://images.unsplash.com/photo-1605478037911-9b7a21b88ff5?w=600" },
-    ],
-  },
-  {
-    category: "Main Course",
-    items: [
-      { name: "Butter Chicken", price: "₹250", img: "https://images.unsplash.com/photo-1599309328078-531e88b0ae1b?w=600" },
-      { name: "Paneer Butter Masala", price: "₹220", img: "https://images.unsplash.com/photo-1606851091272-99a3d1b7e5a1?w=600" },
-    ],
-  },
-  {
-    category: "Desserts",
-    items: [
-      { name: "Gulab Jamun", price: "₹80", img: "https://images.unsplash.com/photo-1600250399407-821b0e4d78b0?w=600" },
-      { name: "Brownie with Ice Cream", price: "₹120", img: "https://images.unsplash.com/photo-1612197527762-9e6d875a16a7?w=600" },
-    ],
-  },
-];
-
-// 🍽️ Generate text-based menu
-function getTextMenu() {
-  return (
-    "🍴 *AV Food Factory Menu*\n\n" +
-    menu
-      .map(
-        (m) =>
-          `*${m.category}*\n` +
-          m.items.map((i) => `• ${i.name} — ${i.price}`).join("\n")
-      )
-      .join("\n\n") +
-    "\n\nType *order* to place an order or *offers* to see deals 🎉"
-  );
-}
-
-// 🔘 Create quick reply buttons
-function createButtons(to: string, body: string) {
-  return {
-    messaging_product: "whatsapp",
-    to,
-    type: "interactive",
-    interactive: {
-      type: "button",
-      body: { text: body },
-      action: {
-        buttons: [
-          { type: "reply", reply: { id: "menu", title: "🍽️ View Menu" } },
-          { type: "reply", reply: { id: "offers", title: "💥 Offers" } },
-          { type: "reply", reply: { id: "contact", title: "📞 Contact" } },
-        ],
-      },
-    },
-  };
-}
-
-// 🧠 Main logic for message reply
-async function generateFoodReply(text: string, from: string) {
-  const msg = text.toLowerCase().trim();
-
-  // 🟢 Greeting
-  if (["hi", "hello", "hey", "namaste"].some((g) => msg.includes(g))) {
-    return createButtons(
-      from,
-      "👋 *Welcome to AV Food Factory!*\n\nDelicious food, quick service, and great offers await you!\n\nChoose an option below 👇"
-    );
-  }
-
-  // 🍴 Menu
-  if (msg.includes("menu")) {
-    return {
-      messaging_product: "whatsapp",
-      to: from,
-      type: "text",
-      text: { body: getTextMenu() },
-    };
-  }
-
-  // 🖼️ Image Menu
-  if (msg.includes("starters") || msg.includes("main") || msg.includes("dessert")) {
-    const category = msg.includes("starter")
-      ? "Starters"
-      : msg.includes("main")
-      ? "Main Course"
-      : "Desserts";
-
-    const selected = menu.find((m) => m.category === category);
-    if (!selected) return;
-
-    // Send one image per item
-    const responses = selected.items.map((i) => ({
-      messaging_product: "whatsapp",
-      to: from,
-      type: "image",
-      image: { link: i.img, caption: `${i.name} — ${i.price}` },
-    }));
-
-    return responses;
-  }
-
-  // 💥 Offers
-  if (msg.includes("offer") || msg.includes("discount")) {
-    return {
-      messaging_product: "whatsapp",
-      to: from,
-      type: "text",
-      text: {
-        body:
-          "🎉 *Current Offers*\n\n" +
-          "🍕 Buy 1 Get 1 on Pizzas (Mon–Thu)\n" +
-          "🍛 20% Off above ₹1000\n" +
-          "🍰 Free Dessert on Dine-in Weekends\n\nType *menu* to browse dishes!",
-      },
-    };
-  }
-
-  // 📞 Contact
-  if (msg.includes("contact") || msg.includes("address") || msg.includes("location")) {
-    return {
-      messaging_product: "whatsapp",
-      to: from,
-      type: "text",
-      text: {
-        body:
-          "📍 *AV Food Factory*\nNear City Mall, Lucknow, UP\n\n📞 +91 98765 43210\n🌐 www.avfoodfactory.com\n\nOpen Daily: 11 AM – 11 PM 🍽️",
-      },
-    };
-  }
-
-  // 🛒 Order
-  if (msg.includes("order")) {
-    return {
-      messaging_product: "whatsapp",
-      to: from,
-      type: "text",
-      text: {
-        body:
-          "🛒 *Let’s take your order!*\n\nPlease reply with:\n• Dish Name(s)\n• Quantity\n• Pickup or Delivery\n\nExample: _2x Butter Chicken for delivery_",
-      },
-    };
-  }
-
-  // 📆 Reservation
-  if (msg.includes("table") || msg.includes("book")) {
-    return {
-      messaging_product: "whatsapp",
-      to: from,
-      type: "text",
-      text: {
-        body:
-          "🍽️ *Reserve a Table*\n\nPlease share:\n• Date & Time\n• Number of Guests\n• Name\n\nExample: _Table for 4 at 8 PM tonight under name Rahul_",
-      },
-    };
-  }
-
-  // Default fallback
-  return createButtons(from, "I can show you our *Menu*, *Offers*, or *Contact Info*. Choose one below 👇");
-}
-
-// ✅ Webhook verification
+// GET: webhook verification for Meta
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const mode = searchParams.get("hub.mode");
     const token = searchParams.get("hub.verify_token");
     const challenge = searchParams.get("hub.challenge");
-
     if (mode === "subscribe" && token === process.env.META_VERIFY_TOKEN) {
       return new NextResponse(challenge, { status: 200 });
-    } else {
-      return new NextResponse("Forbidden", { status: 403 });
     }
-  } catch {
-    return new NextResponse("Server Error", { status: 500 });
+    return new NextResponse("Forbidden", { status: 403 });
+  } catch (err) {
+    console.error("GET webhook error", err);
+    return new NextResponse("Error", { status: 500 });
   }
 }
 
-// ✅ Handle incoming WhatsApp messages
+// Helper: send message to WhatsApp Cloud API
+async function sendWhatsAppMessage(msg: any) {
+  const res = await fetch(`https://graph.facebook.com/v20.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.META_ACCESS_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(msg),
+  });
+  if (!res.ok) {
+    const txt = await res.text();
+    console.error("Failed to send WhatsApp message", res.status, txt);
+  }
+  return res;
+}
+
+// POST: incoming webhook
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+    console.log("Incoming webhook:", JSON.stringify(body, null, 2));
+
     const message = body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
-    const from = message?.from;
-    const text = message?.text?.body || message?.interactive?.button_reply?.title;
+    if (!message) {
+      // handle status updates or other callbacks
+      return new NextResponse("EVENT_RECEIVED", { status: 200 });
+    }
 
-    if (!from || !text) return new NextResponse("EVENT_RECEIVED", { status: 200 });
+    const from = message.from; // user's phone number (string)
+    const session = getSession(from);
 
-    console.log(`💬 Message from ${from}: ${text}`);
+    // Determine source of input:
+    // - text (regular)
+    // - interactive.reply (button/list id)
+    // - location message -> message.location
+    // - contacts -> message.contacts
+    const interactiveReply = message?.interactive?.button_reply?.id || message?.interactive?.list_reply?.id;
+    const text = message?.text?.body;
+    const location = message?.location;
+    const contacts = message?.contacts;
 
-    // Get the response (could be text or buttons or multiple images)
-    const reply = await generateFoodReply(text, from);
+    // 1) Handle interactive replies (buttons or list)
+    if (interactiveReply) {
+      console.log("Interactive reply id:", interactiveReply);
 
-    // Reply can be single object or array of multiple messages
-    const replies = Array.isArray(reply) ? reply : [reply];
-
-    for (const msg of replies) {
-      const res = await fetch(`https://graph.facebook.com/v20.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.META_ACCESS_TOKEN}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(msg),
-      });
-
-      if (!res.ok) {
-        console.error("⚠️ Failed to send reply:", res.status, await res.text());
+      // --- top-level buttons ---
+      if (interactiveReply === "view_menu") {
+        await sendWhatsAppMessage(buildCategoryList(from));
+        return new NextResponse("EVENT_RECEIVED", { status: 200 });
       }
+
+      if (interactiveReply === "my_cart") {
+        await sendWhatsAppMessage(buildCartView(from, session));
+        return new NextResponse("EVENT_RECEIVED", { status: 200 });
+      }
+
+      if (interactiveReply === "offers") {
+        await sendWhatsAppMessage({
+          messaging_product: "whatsapp",
+          to: from,
+          type: "text",
+          text: { body: "🎉 Offers: Buy 1 Get 1 on Pizzas (Mon–Thu). 20% off above ₹1000." },
+        });
+        return new NextResponse("EVENT_RECEIVED", { status: 200 });
+      }
+
+      if (interactiveReply === "place_order") {
+        // ask delivery or pickup
+        session.pendingAction = "awaiting_delivery_type";
+        await sendWhatsAppMessage(buildDeliveryTypeButtons(from));
+        return new NextResponse("EVENT_RECEIVED", { status: 200 });
+      }
+
+      // --- category selection (id starts with cat_) ---
+      if (interactiveReply.startsWith("cat_")) {
+        const catId = interactiveReply.replace("cat_", "");
+        await sendWhatsAppMessage(buildItemList(from, catId));
+        return new NextResponse("EVENT_RECEIVED", { status: 200 });
+      }
+
+      // --- item selection (id starts with item_) ---
+      if (interactiveReply.startsWith("item_")) {
+        const itemId = interactiveReply.replace("item_", "");
+        const card = buildItemCard(from, itemId);
+        if (card) {
+          // send item image card then add qty buttons
+          await sendWhatsAppMessage(card);
+          await sendWhatsAppMessage(buildAddToCartButtons(from, itemId));
+          session.pendingAction = `awaiting_qty_${itemId}`;
+        } else {
+          await sendWhatsAppMessage({ messaging_product: "whatsapp", to: from, type: "text", text: { body: "Item not found." } });
+        }
+        return new NextResponse("EVENT_RECEIVED", { status: 200 });
+      }
+
+      // --- quantity buttons: format qty_X_itemId ---
+      if (interactiveReply.startsWith("qty_")) {
+        // example: qty_2_s_paneer_tikka
+        const parts = interactiveReply.split("_");
+        // qty, number, itemIdParts...
+        const qty = parseInt(parts[1], 10);
+        const itemId = parts.slice(2).join("_");
+        // find item
+        const flat = MENU.flatMap((c) => c.items);
+        const it = flat.find((x) => x.id === itemId);
+        if (!it) {
+          await sendWhatsAppMessage({ messaging_product: "whatsapp", to: from, type: "text", text: { body: "Item not found for adding to cart." } });
+          return new NextResponse("EVENT_RECEIVED", { status: 200 });
+        }
+        // add to cart
+        const existing = session.cart.find((c: any) => c.id === it.id);
+        if (existing) existing.qty += qty;
+        else session.cart.push({ id: it.id, name: it.name, price: it.price, qty });
+        await sendWhatsAppMessage({
+          messaging_product: "whatsapp",
+          to: from,
+          type: "text",
+          text: { body: `✅ Added ${qty} x ${it.name} to your cart.` },
+        });
+        // send cart options
+        await sendWhatsAppMessage(buildCartView(from, session));
+        return new NextResponse("EVENT_RECEIVED", { status: 200 });
+      }
+
+      // delivery type selected
+      if (interactiveReply === "delivery" || interactiveReply === "pickup") {
+        session.deliveryType = interactiveReply === "delivery" ? "delivery" : "pickup";
+        session.pendingAction = session.deliveryType === "delivery" ? "awaiting_location_and_contact" : "awaiting_contact_for_pickup";
+        // Prompt user to share location & contact
+        await sendWhatsAppMessage(buildShareLocationContact(from, session.deliveryType));
+        await sendWhatsAppMessage(buildConfirmOrderButton(from));
+        return new NextResponse("EVENT_RECEIVED", { status: 200 });
+      }
+
+      // confirm or cancel
+      if (interactiveReply === "confirm_order") {
+        // require contact and if delivery, location
+        // pickup: need contact only
+        if (session.deliveryType === "pickup") {
+          if (!session.tempOrderMeta.contact) {
+            await sendWhatsAppMessage({ messaging_product: "whatsapp", to: from, type: "text", text: { body: "Please share your contact (tap attachment → Contact) so we can confirm pickup." } });
+            return new NextResponse("EVENT_RECEIVED", { status: 200 });
+          }
+          // save order
+          await saveOrderFromSession(from, session);
+          return new NextResponse("EVENT_RECEIVED", { status: 200 });
+        } else {
+          // delivery
+          if (!session.tempOrderMeta.contact || !session.tempOrderMeta.location) {
+            await sendWhatsAppMessage({ messaging_product: "whatsapp", to: from, type: "text", text: { body: "Please share your *location* and *contact* before confirming. Use attachment → Location and Contact." } });
+            return new NextResponse("EVENT_RECEIVED", { status: 200 });
+          }
+          await saveOrderFromSession(from, session);
+          return new NextResponse("EVENT_RECEIVED", { status: 200 });
+        }
+      }
+
+      if (interactiveReply === "cancel_order") {
+        // clear session cart & meta
+        session.cart = [];
+        session.pendingAction = null;
+        session.deliveryType = null;
+        session.tempOrderMeta = {};
+        await sendWhatsAppMessage({ messaging_product: "whatsapp", to: from, type: "text", text: { body: "❌ Order cancelled and cart cleared." } });
+        await sendWhatsAppMessage(buildButtons(from, "What would you like to do next?"));
+        return new NextResponse("EVENT_RECEIVED", { status: 200 });
+      }
+
+      // clear cart action
+      if (interactiveReply === "clear_cart") {
+        session.cart = [];
+        await sendWhatsAppMessage({ messaging_product: "whatsapp", to: from, type: "text", text: { body: "🧹 Cart cleared." } });
+        await sendWhatsAppMessage(buildButtons(from, "Anything else?"));
+        return new NextResponse("EVENT_RECEIVED", { status: 200 });
+      }
+
+      return new NextResponse("EVENT_RECEIVED", { status: 200 });
+    }
+
+    // 2) Handle location message (user shared location via attachment)
+    if (location) {
+      // store in session.tempOrderMeta
+      session.tempOrderMeta.location = { lat: location.latitude, long: location.longitude };
+      await sendWhatsAppMessage({ messaging_product: "whatsapp", to: from, type: "text", text: { body: "📍 Location received. Please share contact (attachment → Contact) or tap Confirm Order." } });
+      return new NextResponse("EVENT_RECEIVED", { status: 200 });
+    }
+
+    // 3) Handle contacts message (user shared contact card)
+    if (contacts && Array.isArray(contacts) && contacts.length > 0) {
+      const c = contacts[0];
+      const phone = c.phones?.[0]?.phone || c.wa_id || c.phones?.[0]?.wa_id;
+      const name = c.name?.formatted_name || `${c.name?.first_name || ""} ${c.name?.last_name || ""}`.trim() || phone;
+      session.tempOrderMeta.contact = { name, phone };
+      await sendWhatsAppMessage({ messaging_product: "whatsapp", to: from, type: "text", text: { body: `📞 Contact received: ${name} (${phone}).\nIf everything's good, tap *Confirm Order*` } });
+      await sendWhatsAppMessage(buildConfirmOrderButton(from));
+      return new NextResponse("EVENT_RECEIVED", { status: 200 });
+    }
+
+    // 4) Handle fallback text message (we keep it minimal because we prefer buttons)
+    if (text) {
+      // Starter greeting if text contains hi
+      if (/hi|hello|namaste|hey/i.test(text)) {
+        await sendWhatsAppMessage(buildButtons(from, "👋 Welcome to AV Food Factory! Choose an option"));
+        return new NextResponse("EVENT_RECEIVED", { status: 200 });
+      }
+
+      // Some platforms send list replies with title instead of id — handle those
+      const listReplyTitle = message?.interactive?.list_reply?.title;
+      if (listReplyTitle) {
+        // attempt to map title to category or item
+        // category match
+        const cat = MENU.find((c) => c.title.toLowerCase() === listReplyTitle.toLowerCase());
+        if (cat) {
+          await sendWhatsAppMessage(buildItemList(from, cat.categoryId));
+          return new NextResponse("EVENT_RECEIVED", { status: 200 });
+        }
+        // item match across menu
+        const flat = MENU.flatMap((c) => c.items);
+        const it = flat.find((i) => i.name.toLowerCase() === listReplyTitle.toLowerCase());
+        if (it) {
+          await sendWhatsAppMessage(buildItemCard(from, it.id));
+          await sendWhatsAppMessage(buildAddToCartButtons(from, it.id));
+          session.pendingAction = `awaiting_qty_${it.id}`;
+          return new NextResponse("EVENT_RECEIVED", { status: 200 });
+        }
+      }
+
+      // default: send main buttons
+      await sendWhatsAppMessage(buildButtons(from, "I work best with buttons. Choose an option:"));
+      return new NextResponse("EVENT_RECEIVED", { status: 200 });
     }
 
     return new NextResponse("EVENT_RECEIVED", { status: 200 });
   } catch (err) {
-    console.error("⚠️ Webhook error:", err);
+    console.error("Webhook handler error:", err);
     return new NextResponse("Error", { status: 500 });
+  }
+}
+
+// Helper: save the current session.cart as an Order in MongoDB
+async function saveOrderFromSession(from: string, session: any) {
+  try {
+    await connectDB();
+    const cart = session.cart || [];
+    if (cart.length === 0) {
+      await sendWhatsAppMessage({ messaging_product: "whatsapp", to: from, type: "text", text: { body: "Your cart is empty. Add items before placing an order." } });
+      return;
+    }
+    const subtotal = cart.reduce((s: number, c: any) => s + c.price * c.qty, 0);
+    const orderDoc = await Order.create({
+      whatsappFrom: from,
+      items: cart.map((c: any) => ({ name: c.name, price: c.price, qty: c.qty })),
+      subtotal,
+      deliveryType: session.deliveryType || "delivery",
+      contact: session.tempOrderMeta.contact || { name: "", phone: "" },
+      location: session.tempOrderMeta.location || null,
+    });
+    // clear session
+    session.cart = [];
+    session.pendingAction = null;
+    session.tempOrderMeta = {};
+    session.deliveryType = null;
+
+    // send confirmation message with order id
+    await sendWhatsAppMessage({
+      messaging_product: "whatsapp",
+      to: from,
+      type: "text",
+      text: {
+        body: `✅ Order Received!\nOrder ID: ${orderDoc._id}\nSubtotal: ₹${orderDoc.subtotal}\nWe will confirm shortly. Thank you for ordering from AV Food Factory!`,
+      },
+    });
+    // Optionally send admin notification (if ADMIN_WHATSAPP_NUMBER set)
+    if (process.env.ADMIN_WHATSAPP_NUMBER) {
+      await sendWhatsAppMessage({
+        messaging_product: "whatsapp",
+        to: process.env.ADMIN_WHATSAPP_NUMBER,
+        type: "text",
+        text: {
+          body: `📦 New Order\nID: ${orderDoc._id}\nFrom: ${from}\nSubtotal: ₹${orderDoc.subtotal}`,
+        },
+      });
+    }
+  } catch (err) {
+    console.error("Error saving order:", err);
+    await sendWhatsAppMessage({ messaging_product: "whatsapp", to: from, type: "text", text: { body: "⚠️ Sorry, we couldn't save your order. Please try again later." } });
   }
 }
