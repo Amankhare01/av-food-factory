@@ -158,7 +158,7 @@ export async function POST(req: NextRequest) {
     const res = await fetch(url, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
+        Authorization: `Bearer ${process.env.META_ACCESS_TOKEN}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
