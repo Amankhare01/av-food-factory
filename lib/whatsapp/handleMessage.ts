@@ -32,6 +32,7 @@ export async function getSession(from: string) {
 
 // ✅ Handle all incoming messages
 export async function handleIncomingMessage(message: any) {
+
   const from = message.from;
   const type = message.type;
   const text = message.text?.body;
@@ -45,6 +46,7 @@ export async function handleIncomingMessage(message: any) {
 
   // 1️⃣ If text message
   if (text) {
+    console.log("💬 Text Message:", text) ;
     if (/hi|hello|hey|namaste/i.test(text)) {
       await sendWhatsAppMessage(
         buildButtons(from, "👋 Welcome to AV Food Factory! Choose an option:")
