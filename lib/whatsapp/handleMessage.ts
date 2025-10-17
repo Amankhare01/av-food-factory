@@ -42,8 +42,9 @@ export async function handleIncomingMessage(message: any) {
 
   console.log("🟢 Received Message Type:", type);
 
-  const session = await getSession(from);
   console.log("text = ",text);
+  const session = await getSession(from);
+  console.log("Session fro ", from, ":", session);
   if (text) {
     console.log("💬 Text Message:", text) ;
     if (/hi|hello|hey|namaste/i.test(text)) {
