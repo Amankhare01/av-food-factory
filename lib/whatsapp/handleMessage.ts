@@ -30,9 +30,9 @@ export async function getSession(from: string) {
   return session;
 }
 
-// ✅ Handle all incoming messages
-export async function handleIncomingMessage(message: any) {
 
+export async function handleIncomingMessage(message: any) {
+  console.log("hndle incmoing message ....");
   const from = message.from;
   const type = message.type;
   const text = message.text?.body;
@@ -43,14 +43,12 @@ export async function handleIncomingMessage(message: any) {
   console.log("🟢 Received Message Type:", type);
 
   const session = await getSession(from);
-
-
+  console.log("text = ",text);
   if (text) {
     console.log("💬 Text Message:", text) ;
     if (/hi|hello|hey|namaste/i.test(text)) {
       await sendWhatsAppMessage(
-        "👋 Hi there! How can I assist you today?"
-        // buildButtons(from, "👋 Welcome to AV Food Factory! Choose an option:")
+        buildButtons(from, "👋 Welcome to AV Food Factory! Choose an option:")
       );
     } else {
       await sendWhatsAppMessage(
