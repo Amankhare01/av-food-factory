@@ -44,12 +44,13 @@ export async function handleIncomingMessage(message: any) {
 
   const session = await getSession(from);
 
-  // 1️⃣ If text message
+
   if (text) {
     console.log("💬 Text Message:", text) ;
     if (/hi|hello|hey|namaste/i.test(text)) {
       await sendWhatsAppMessage(
-        buildButtons(from, "👋 Welcome to AV Food Factory! Choose an option:")
+        "👋 Hi there! How can I assist you today?"
+        // buildButtons(from, "👋 Welcome to AV Food Factory! Choose an option:")
       );
     } else {
       await sendWhatsAppMessage(

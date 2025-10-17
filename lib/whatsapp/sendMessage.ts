@@ -13,7 +13,7 @@ export async function sendWhatsAppMessage(msg: any) {
     });
 
     const text = await res.text();
-    console.log("📥 WhatsApp API Response:", res.status, text);
+    console.log("WhatsApp API Response:", res.status, text);
 
     if (!res.ok) throw new Error(`Failed to send: ${res.status} ${text}`);
     return text;
@@ -21,3 +21,4 @@ export async function sendWhatsAppMessage(msg: any) {
     console.error("❌ sendWhatsAppMessage error:", err);
   }
 }
+                                      
