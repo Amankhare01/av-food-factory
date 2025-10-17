@@ -27,6 +27,8 @@ export async function getSession(from: string) {
       tempOrderMeta: {},
     });
   }
+  console.log("Session for", from, ":", session);
+
   return session;
 }
 
