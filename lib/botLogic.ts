@@ -68,21 +68,21 @@ export const MENU = [
 export const sessions: Record<string, any> = {};
 
 // Helper: get or create session by sender phone
-export async function getSession(sender: string) {
-  await connectDB();
+// export async function getSession(sender: string) {
+//   await connectDB();
 
-  let session = await Session.findOne({ userPhone: sender });
-  if (!session) {
-    session = await Session.create({
-      userPhone: sender,
-      cart: [],
-      pendingAction: null,
-      deliveryType: null,
-      tempOrderMeta: {},
-    });
-  }
-  return session;
-}
+//   let session = await Session.findOne({ userPhone: sender });
+//   if (!session) {
+//     session = await Session.create({
+//       userPhone: sender,
+//       cart: [],
+//       pendingAction: null,
+//       deliveryType: null,
+//       tempOrderMeta: {},
+//     });
+//   }
+//   return session;
+// }
 
 
 // Build a button interactive message (reply buttons)

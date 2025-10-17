@@ -16,6 +16,7 @@ import {
 
 // ✅ Get or create session
 export async function getSession(from: string) {
+  console.log("getSession called for:", from);
   await connectDB();
   let session = await Session.findOne({ userPhone: from });
   if (!session) {
@@ -28,7 +29,6 @@ export async function getSession(from: string) {
     });
   }
   console.log("Session for", from, ":", session);
-
   return session;
 }
 
