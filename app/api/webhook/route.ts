@@ -1,30 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyWebhook } from "@/lib/whatsapp/webhookUtils";
-import { handleIncomingMessage } from "@/lib/whatsapp/handleMessage";
+import { handleIncomingMessage } from "@/lib/botLogic";
 
-// ✅ Verification
 export async function GET(req: NextRequest) {
-  return verifyWebhook(req);
+  const { searchParams } = new URL(req.url);
+  const mode = searchParams.get("hub.mode");
+  const token = searchParams.get("hub.verify_token");
+  const challenge = searchParams.get("hub.challenge");
+
+  if (mode === "subscribe" && token === process.env.META_VERIFY_TOKEN) {
+    return new NextResponse(challenge, { status: 200 });
+  }
+  return new NextResponse("Forbidden", { status: 403 });
 }
 
-// ✅ Incoming messages
 export async function POST(req: NextRequest) {
   try {
-    console.log("🚀 WhatsApp Webhook Triggered");
     const body = await req.json();
-    const message = body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
-
-    if (!message) {
-      console.log("⚠️ No messages (status or delivery update).");
-      return NextResponse.json("EVENT_RECEIVED", { status: 200 });
-    }
-
-    console.log("🟢 Message received:", message);
-    await handleIncomingMessage(message);
-
-    return NextResponse.json("EVENT_RECEIVED", { status: 200 });
+    const entry = body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+    if (entry) await handleIncomingMessage(entry);
+    return NextResponse.json({ success: true });
   } catch (err) {
-    console.error("❌ Webhook Error:", err);
-    return new NextResponse("Error", { status: 500 });
+    console.error("Webhook error:", err);
+    return NextResponse.json({ success: false }, { status: 500 });
   }
 }

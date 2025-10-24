@@ -1,91 +1,191 @@
-// lib/botLogic.ts
-import { Order } from "@/lib/mongodb"; 
 import { connectDB } from "@/lib/mongodb";
 import { Session } from "@/lib/sessionModel";
+import { Order } from "@/lib/orderModel";
+import { sendWhatsAppMessage } from "@/lib/whatsapp";
 
-
-// ----- MENU (edit items/prices/images) -----
 export const MENU = [
   {
     categoryId: "starters",
     title: "Starters",
     items: [
-      {
-        id: "s_paneer_tikka",
-        name: "Paneer Tikka",
-        price: 180,
-        img: "https://.../paneer.jpg",
-      },
-      {
-        id: "s_chicken_65",
-        name: "Chicken 65",
-        price: 200,
-        img: "https://.../chicken65.jpg",
-      },
+      { id: "s_paneer_tikka", name: "Paneer Tikka", price: 180, img: "https://.../paneer.jpg" },
+      { id: "s_chicken_65", name: "Chicken 65", price: 200, img: "https://.../chicken65.jpg" },
     ],
   },
   {
     categoryId: "main",
     title: "Main Course",
     items: [
-      {
-        id: "m_butter_chicken",
-        name: "Butter Chicken",
-        price: 250,
-        img: "https://.../butterchicken.jpg",
-      },
-      {
-        id: "m_paneer_butter",
-        name: "Paneer Butter Masala",
-        price: 220,
-        img: "https://.../paneerbutter.jpg",
-      },
+      { id: "m_butter_chicken", name: "Butter Chicken", price: 250, img: "https://.../butterchicken.jpg" },
+      { id: "m_paneer_butter", name: "Paneer Butter Masala", price: 220, img: "https://.../paneerbutter.jpg" },
     ],
   },
   {
     categoryId: "desserts",
     title: "Desserts",
     items: [
-      {
-        id: "d_gulab",
-        name: "Gulab Jamun",
-        price: 80,
-        img: "https://.../gulab.jpg",
-      },
-      {
-        id: "d_brownie",
-        name: "Brownie with Ice Cream",
-        price: 120,
-        img: "https://.../brownie.jpg",
-      },
+      { id: "d_gulab", name: "Gulab Jamun", price: 80, img: "https://.../gulab.jpg" },
+      { id: "d_brownie", name: "Brownie with Ice Cream", price: 120, img: "https://.../brownie.jpg" },
     ],
   },
 ];
 
-// ----- Simple session store (serverless, in-memory) -----
-// WARNING: In-memory sessions are ephemeral (restarts will lose carts).
-// For production use a persistent store (Redis, Dynamo, Firestore).
-export const sessions: Record<string, any> = {};
 
-// Helper: get or create session by sender phone
-// export async function getSession(sender: string) {
-//   await connectDB();
+export async function handleIncomingMessage(message: any) {
+  await connectDB();
 
-//   let session = await Session.findOne({ userPhone: sender });
-//   if (!session) {
-//     session = await Session.create({
-//       userPhone: sender,
-//       cart: [],
-//       pendingAction: null,
-//       deliveryType: null,
-//       tempOrderMeta: {},
-//     });
-//   }
-//   return session;
-// }
+  const from = message.from;
+  const text = message.text?.body?.trim().toLowerCase();
+  const buttonId = message.interactive?.button_reply?.id;
+  const listId = message.interactive?.list_reply?.id;
+  const action = buttonId || listId || text;
 
+  let session = await Session.findOne({ userId: from });
+  if (!session)
+    session = await Session.create({ userId: from, cart: [], step: "welcome" });
 
-// Build a button interactive message (reply buttons)
+  console.log(`📩 [${from}] → Action: ${action}`);
+
+  try {
+    switch (true) {
+      // 🌟 Start / Menu
+      case ["hi", "hello", "hey"].includes(action):
+        await sendWhatsAppMessage(buildButtons(from, "👋 Welcome to AV Food Factory!"));
+        session.step = "welcome";
+        break;
+
+      case action === "view_menu":
+        await sendWhatsAppMessage(buildCategoryList(from));
+        session.step = "choose_category";
+        break;
+
+      // 🍴 Category Selection
+      case action.startsWith("cat_"):
+        await sendWhatsAppMessage(buildItemList(from, action.replace("cat_", "")));
+        session.step = "choose_item";
+        break;
+
+      // 🧆 Item Selected
+      case action.startsWith("item_"): {
+        const itemId = action.replace("item_", "");
+        await sendWhatsAppMessage(buildItemCard(from, itemId));
+        await sendWhatsAppMessage(buildAddToCartButtons(from, itemId));
+        session.context = { itemId };
+        session.step = "add_to_cart";
+        break;
+      }
+
+      // ➕ Add Quantity
+      case action.startsWith("qty_"): {
+        const [_, qty, itemId] = action.split("_");
+        const item = MENU.flatMap((c) => c.items).find((i) => i.id === itemId);
+        if (!item) {
+          await sendWhatsAppMessage(buildText(from, "❌ Item not found."));
+          break;
+        }
+        session.cart.push({
+          itemId,
+          name: item.name,
+          qty: Number(qty),
+          price: item.price,
+        });
+        await sendWhatsAppMessage(buildText(from, `✅ Added *${item.name} ×${qty}* to cart.`));
+        await sendWhatsAppMessage(buildButtons(from, "What would you like to do next?"));
+        session.step = "menu";
+        break;
+      }
+
+      // 🛒 View Cart
+      case action === "my_cart":
+        await sendWhatsAppMessage(buildCartView(from, session));
+        break;
+
+      // 🧹 Clear Cart
+      case action === "clear_cart":
+        session.cart = [];
+        await sendWhatsAppMessage(buildText(from, "🧹 Cart cleared."));
+        break;
+
+      // ✅ Place Order
+      case action === "place_order":
+        if (!session.cart?.length)
+          await sendWhatsAppMessage(buildText(from, "🛒 Your cart is empty!"));
+        else {
+          await sendWhatsAppMessage(buildDeliveryTypeButtons(from));
+          session.step = "delivery_choice";
+        }
+        break;
+
+      // 🚚 Delivery / Pickup
+      case ["delivery", "pickup"].includes(action):
+        session.deliveryType = action;
+        await sendWhatsAppMessage(buildShareLocationContact(from, action));
+        await sendWhatsAppMessage(buildConfirmOrderButton(from));
+        session.step = "confirm_order";
+        break;
+
+      // ✅ Confirm Order
+          case action === "confirm_order": {
+            interface CartItem {
+              price: number;
+              qty: number;
+            }
+            const total = session.cart.reduce((sum: number, c: CartItem) => sum + c.price * c.qty, 0);
+        await Order.create({
+          userId: from,
+          cart: session.cart,
+          total,
+          deliveryType: session.deliveryType,
+          status: "Pending",
+        });
+        await sendWhatsAppMessage(
+          buildText(
+            from,
+            `✅ *Order Confirmed!*\nTotal: ₹${total}\nDelivery Type: ${session.deliveryType.toUpperCase()}\n\nThank you for ordering with *AV Food Factory!* 🍴`
+          )
+        );
+        session.cart = [];
+        session.step = "welcome";
+        break;
+      }
+
+      // ❌ Cancel
+      case action === "cancel_order":
+        session.cart = [];
+        session.step = "welcome";
+        await sendWhatsAppMessage(buildText(from, "❌ Order cancelled. Come back soon!"));
+        break;
+
+      // 💥 Offers (optional static reply)
+      case action === "offers":
+        await sendWhatsAppMessage(buildText(from, "🎉 Today’s Offer: Get 10% off on orders above ₹499!"));
+        break;
+
+      // 🪄 Fallback
+      default:
+        await sendWhatsAppMessage(buildButtons(from, "👋 Welcome to AV Food Factory!"));
+        break;
+    }
+
+    await session.save();
+  } catch (err) {
+    console.error("❌ Bot Logic Error:", err);
+    await sendWhatsAppMessage(buildText(from, "⚠️ Sorry, something went wrong. Please try again."));
+  }
+}
+
+/* ----------------------------------------------------------
+   🧩 MESSAGE BUILDERS
+---------------------------------------------------------- */
+export function buildText(to: string, bodyText: string) {
+  return {
+    messaging_product: "whatsapp",
+    to,
+    type: "text",
+    text: { body: bodyText },
+  };
+}
+
 export function buildButtons(to: string, bodyText: string) {
   return {
     messaging_product: "whatsapp",
@@ -97,19 +197,14 @@ export function buildButtons(to: string, bodyText: string) {
       action: {
         buttons: [
           { type: "reply", reply: { id: "view_menu", title: "🍽️ View Menu" } },
-            { type: "reply", reply: { id: "my_cart", title: "🛒 My Cart" } },
+          { type: "reply", reply: { id: "my_cart", title: "🛒 My Cart" } },
           { type: "reply", reply: { id: "offers", title: "💥 Offers" } },
-          // {
-          //   type: "reply",
-          //   reply: { id: "place_order", title: "✅ Place Order" },
-          // },
         ],
       },
     },
   };
 }
 
-// Build a list of categories
 export function buildCategoryList(to: string) {
   return {
     messaging_product: "whatsapp",
@@ -117,9 +212,9 @@ export function buildCategoryList(to: string) {
     type: "interactive",
     interactive: {
       type: "list",
-      header: { type: "text", text: "🍴 AV Food Factory — Categories" },
-      body: { text: "Choose a category" },
-      footer: { text: "Tap a category to view items" },
+      header: { type: "text", text: "🍴 AV Food Factory — Menu" },
+      body: { text: "Choose a category:" },
+      footer: { text: "Tap to view items" },
       action: {
         button: "View Categories",
         sections: MENU.map((cat) => ({
@@ -137,10 +232,10 @@ export function buildCategoryList(to: string) {
   };
 }
 
-// Build list of items for a category
 export function buildItemList(to: string, categoryId: string) {
   const cat = MENU.find((m) => m.categoryId === categoryId);
-  if (!cat) return null;
+  if (!cat) return buildText(to, "❌ Category not found.");
+
   return {
     messaging_product: "whatsapp",
     to,
@@ -148,8 +243,7 @@ export function buildItemList(to: string, categoryId: string) {
     interactive: {
       type: "list",
       header: { type: "text", text: `🍽️ ${cat.title}` },
-      body: { text: `Choose item to view / add` },
-      footer: { text: "Tap an item" },
+      body: { text: "Select an item:" },
       action: {
         button: "View Items",
         sections: [
@@ -167,24 +261,21 @@ export function buildItemList(to: string, categoryId: string) {
   };
 }
 
-// Build item card (text + buttons add/back)
 export function buildItemCard(to: string, itemId: string) {
-  const flat = MENU.flatMap((c) => c.items);
-  const it = flat.find((x) => x.id === itemId);
-  if (!it) return null;
+  const item = MENU.flatMap((c) => c.items).find((x) => x.id === itemId);
+  if (!item) return buildText(to, "❌ Item not found.");
+
   return {
     messaging_product: "whatsapp",
     to,
     type: "image",
     image: {
-      link: it.img,
-      caption: `*${it.name}* — ₹${it.price}\n\nChoose an action:`,
+      link: item.img,
+      caption: `*${item.name}* — ₹${item.price}\n\nChoose quantity:`,
     },
-    // We will follow with a buttons interactive message (text + "Add to Cart")
   };
 }
 
-// Build Add-to-cart buttons
 export function buildAddToCartButtons(to: string, itemId: string) {
   return {
     messaging_product: "whatsapp",
@@ -192,7 +283,7 @@ export function buildAddToCartButtons(to: string, itemId: string) {
     type: "interactive",
     interactive: {
       type: "button",
-      body: { text: "Choose quantity to add:" },
+      body: { text: "Select quantity:" },
       action: {
         buttons: [
           { type: "reply", reply: { id: `qty_1_${itemId}`, title: "1" } },
@@ -204,48 +295,33 @@ export function buildAddToCartButtons(to: string, itemId: string) {
   };
 }
 
-// Build view cart text (summary + checkout buttons)
 export function buildCartView(to: string, session: any) {
   const cart = session.cart || [];
-  if (cart.length === 0) {
-    return {
-      messaging_product: "whatsapp",
-      to,
-      type: "text",
-      text: { body: "🛒 Your cart is empty. Tap *View Menu* to add items." },
-    };
-  }
-  const lines = cart
-    .map(
-      (c: any, idx: number) =>
-        `${idx + 1}. ${c.name} x${c.qty} — ₹${c.price * c.qty}`
-    )
+  if (!cart.length) return buildText(to, "🛒 Your cart is empty!");
+
+  const summary = cart
+    .map((c: any, i: number) => `${i + 1}. ${c.name} ×${c.qty} — ₹${c.price * c.qty}`)
     .join("\n");
-  const subtotal = cart.reduce((s: number, c: any) => s + c.price * c.qty, 0);
+
+  const total = cart.reduce((sum: number, c: any) => sum + c.price * c.qty, 0);
+
   return {
     messaging_product: "whatsapp",
     to,
     type: "interactive",
     interactive: {
       type: "button",
-      body: { text: `🛒 Your Cart\n\n${lines}\n\nSubtotal: ₹${subtotal}` },
+      body: { text: `🛒 *Your Cart*\n\n${summary}\n\nSubtotal: ₹${total}` },
       action: {
         buttons: [
-          {
-            type: "reply",
-            reply: { id: "place_order", title: "✅ Place Order" },
-          },
-          {
-            type: "reply",
-            reply: { id: "clear_cart", title: "🧹 Clear Cart" },
-          },
+          { type: "reply", reply: { id: "place_order", title: "✅ Place Order" } },
+          { type: "reply", reply: { id: "clear_cart", title: "🧹 Clear Cart" } },
         ],
       },
     },
   };
 }
 
-// Ask delivery or pickup
 export function buildDeliveryTypeButtons(to: string) {
   return {
     messaging_product: "whatsapp",
@@ -264,32 +340,14 @@ export function buildDeliveryTypeButtons(to: string) {
   };
 }
 
-// Ask user to share location & contact
-export function buildShareLocationContact(
-  to: string,
-  deliveryType: "delivery" | "pickup"
-) {
-  if (deliveryType === "delivery") {
-    return {
-      messaging_product: "whatsapp",
-      to,
-      type: "text",
-      text: {
-        body: "🚚 To get your order delivered, please *share your location* (tap attachment → Location) and *share your contact* (tap attachment → Contact). \n\nAfter sharing both, tap *Confirm Order*.",
-      },
-    };
-  }
-  return {
-    messaging_product: "whatsapp",
-    to,
-    type: "text",
-    text: {
-      body: "🏃 For pickup, please *share your contact* (tap attachment → Contact) so we can confirm pickup details.",
-    },
-  };
+export function buildShareLocationContact(to: string, deliveryType: string) {
+  const text =
+    deliveryType === "delivery"
+      ? "🚚 Please *share your location* (📎 → Location) and *your contact* (📎 → Contact), then tap *Confirm Order*."
+      : "🏃 Please *share your contact* (📎 → Contact) so we can confirm pickup details.";
+  return buildText(to, text);
 }
 
-// Build final confirm order button
 export function buildConfirmOrderButton(to: string) {
   return {
     messaging_product: "whatsapp",
@@ -300,10 +358,7 @@ export function buildConfirmOrderButton(to: string) {
       body: { text: "Ready to confirm order?" },
       action: {
         buttons: [
-          {
-            type: "reply",
-            reply: { id: "confirm_order", title: "✅ Confirm Order" },
-          },
+          { type: "reply", reply: { id: "confirm_order", title: "✅ Confirm Order" } },
           { type: "reply", reply: { id: "cancel_order", title: "❌ Cancel" } },
         ],
       },

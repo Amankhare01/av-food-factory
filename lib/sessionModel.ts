@@ -1,32 +1,22 @@
-import mongoose from "mongoose";
+import mongoose, { Schema, models } from "mongoose";
 
-const SessionSchema = new mongoose.Schema(
+const SessionSchema = new Schema(
   {
-    userPhone: { type: String, required: true, unique: true },
+    userId: { type: String, required: true, unique: true },
     cart: [
       {
-        id: String,
+        itemId: String,
         name: String,
-        price: Number,
         qty: Number,
+        price: Number,
       },
     ],
-    deliveryType: { type: String, enum: ["delivery", "pickup", null], default: null },
-    pendingAction: { type: String, default: null },
-    tempOrderMeta: {
-      contact: {
-        name: String,
-        phone: String,
-      },
-      location: {
-        lat: Number,
-        long: Number,
-        address: String,
-      },
-    },
+    deliveryType: { type: String, default: null },
+    step: { type: String, default: "welcome" },
+    location: { type: Object, default: {} },
+    contact: { type: Object, default: {} },
   },
-  { timestamps: true, collection: "sessions" }
+  { timestamps: true }
 );
 
-export const Session =
-  mongoose.models.Session || mongoose.model("Session", SessionSchema);
+export const Session = models.Session || mongoose.model("Session", SessionSchema);
