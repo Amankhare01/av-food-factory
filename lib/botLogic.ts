@@ -1,6 +1,6 @@
 const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
 const ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
-const ADMIN_PHONE = "916306512288"; // change to your admin WhatsApp number
+const ADMIN_PHONE = "9555160897"; // change to your admin WhatsApp number
 
 // ✅ WhatsApp Send Function
 export async function sendWhatsAppMessage(msg: any) {
@@ -148,69 +148,96 @@ export async function handleIncomingMessage(message: any) {
     return;
   }
 
-  // Delivery / Pickup
-  if (["delivery", "pickup"].includes(action)) {
-    user.deliveryType = action;
-    user.step = "contact";
-    await sendWhatsAppMessage(buildText(from, "📞 Please share your *10-digit contact number*."));
-    return;
-  }
 
-  // Contact Number
-  if (user.step === "contact" && /^\d{10}$/.test(text)) {
-    user.contact = text;
-    if (user.deliveryType === "delivery") {
-      user.step = "location";
-      await sendWhatsAppMessage(buildText(from, "📍 Please share your *delivery location* (tap 📎 → Location)."));
-    } else {
-      user.step = "confirm";
-      await sendWhatsAppMessage(buildConfirmOrderButton(from));
-    }
-    return;
-  }
+// 🛍️ Choose Delivery Type
+if (["delivery", "pickup"].includes(action)) {
+  user.deliveryType = action;
+  user.step = "contact";
+  await sendWhatsAppMessage(
+    buildText(from, "📞 Please share your *10-digit contact number* to proceed.")
+  );
+  return;
+}
 
-  // Location Shared
-  if (message.location && user.deliveryType === "delivery") {
-    user.location = {
-      lat: message.location.latitude,
-      lng: message.location.longitude,
-    };
-    user.step = "confirm";
-    await sendWhatsAppMessage(buildConfirmOrderButton(from));
-    return;
-  }
-
-  // ✅ Confirm Order
-  if (action === "confirm_order") {
-    const total = user.cart.reduce((s: number, i: any) => s + i.price * i.qty, 0);
-    const summary = user.cart
-      .map((i: any) => `${i.name} ×${i.qty} — ₹${i.price * i.qty}`)
-      .join("\n");
-
+// 📞 Contact Number
+if (user.step === "contact" && /^\d{10}$/.test(text)) {
+  user.contact = text;
+  if (user.deliveryType === "delivery") {
+    user.step = "address";
     await sendWhatsAppMessage(
       buildText(
         from,
-        `✅ *Order Confirmed!*\n\n${summary}\nTotal: ₹${total}\n\nThank you for ordering with AV Food Factory! 🍴`
+        "🏠 Please type your *full delivery address* including area and pincode.\n\nExample:\n`123 MG Road, Lucknow 226010`"
       )
     );
+  } else {
+    user.step = "confirm";
+    await sendWhatsAppMessage(buildConfirmOrderButton(from));
+  }
+  return;
+}
 
+// 🏠 Address / Pincode (Manual Input)
+if (user.step === "address" && text) {
+  const pincodeMatch = text.match(/\b\d{6}\b/); // detect Indian pincode (6 digits)
+  if (!pincodeMatch) {
     await sendWhatsAppMessage(
       buildText(
-        ADMIN_PHONE,
-        `📦 *New Order Received!*\n\nFrom: ${from}\nContact: ${user.contact}\nDelivery: ${
-          user.deliveryType
-        }\n\n${summary}\nTotal: ₹${total}\nLocation: ${
-          user.location
-            ? `https://maps.google.com/?q=${user.location.lat},${user.location.lng}`
-            : "N/A"
-        }`
+        from,
+        "⚠️ Please include a valid 6-digit *pincode* in your address.\n\nExample:\n`123 MG Road, Lucknow 226010`"
       )
     );
-
-    user.cart = [];
-    user.step = "done";
     return;
   }
+
+  user.address = text.trim();
+  user.pincode = pincodeMatch[0];
+  user.step = "confirm";
+
+  await sendWhatsAppMessage(buildText(from, "✅ Address saved successfully!"));
+  await sendWhatsAppMessage(buildConfirmOrderButton(from));
+  return;
+}
+
+// ✅ Confirm Order
+if (action === "confirm_order") {
+  const total = user.cart.reduce((sum: number, i: any) => sum + i.price * i.qty, 0);
+  const summary = user.cart
+    .map((i: any) => `${i.name} ×${i.qty} — ₹${i.price * i.qty}`)
+    .join("\n");
+
+  // Confirmation message to customer
+  await sendWhatsAppMessage(
+    buildText(
+      from,
+      `✅ *Order Confirmed!*\n\n${summary}\nTotal: ₹${total}\n\n${
+        user.deliveryType === "delivery"
+          ? `📍 *Address:*\n${user.address}`
+          : "🏬 *Pickup order confirmed!*"
+      }\n\nThank you for ordering with AV Food Factory! 🍴`
+    )
+  );
+
+  // Notification to admin
+  await sendWhatsAppMessage(
+    buildText(
+      ADMIN_PHONE,
+      `📦 *New Order Received!*\n\nFrom: ${from}\nContact: ${
+        user.contact
+      }\nType: ${user.deliveryType}\n\n${summary}\nTotal: ₹${total}\n\n${
+        user.deliveryType === "delivery"
+          ? `🏠 Address: ${user.address}`
+          : "🏬 Pickup order"
+      }`
+    )
+  );
+
+
+  user.cart = [];
+  user.step = "done";
+  return;
+}
+
 
   // Fallback
   await sendWhatsAppMessage(buildMainMenu(from));
