@@ -1,8 +1,9 @@
 const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
 const ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
 const ADMIN_PHONE = "9555160897"; // change to your admin WhatsApp number
+import { connectDB, Order } from "@/lib/mongodb"; // <-- add this import at top of file
 
-// ✅ WhatsApp Send Function
+// WhatsApp Send Function
 export async function sendWhatsAppMessage(msg: any) {
   try {
     const res = await fetch(`https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`, {
@@ -30,7 +31,7 @@ export const MENU = [
 // temporary session store (in-memory)
 const sessions: Record<string, any> = {};
 
-// ✅ Main Bot Logic
+//  Main Bot Logic
 export async function handleIncomingMessage(message: any) {
   const from = message.from;
   const text = message.text?.body?.trim().toLowerCase();
@@ -43,21 +44,21 @@ export async function handleIncomingMessage(message: any) {
 
   console.log("📩 Incoming:", action);
 
-  // 👋 Start / Greeting
+  // Start / Greeting
   if (["hi", "hello", "menu", "start"].includes(action)) {
     user.step = "menu";
     await sendWhatsAppMessage(buildMainMenu(from));
     return;
   }
 
-  // 🍽️ View Menu
+  //  View Menu
   if (action === "view_menu") {
     user.step = "choose_item";
     await sendWhatsAppMessage(buildMenuList(from));
     return;
   }
 
-  // 🥘 Item selected
+  //  Item selected
   if (action.startsWith("item_")) {
     const itemId = action.replace("item_", "");
     const item = MENU.find((i) => i.id === itemId);
@@ -71,7 +72,7 @@ export async function handleIncomingMessage(message: any) {
     return;
   }
 
-  // ➕ Quantity chosen
+  //  Quantity chosen
   if (action.startsWith("qty_")) {
     const qty = Number(action.replace("qty_", ""));
     if (!user.currentItem) {
@@ -89,14 +90,14 @@ export async function handleIncomingMessage(message: any) {
     return;
   }
 
-  // 🛍️ Add More Items
+  //  Add More Items
   if (action === "add_more") {
     user.step = "choose_item";
     await sendWhatsAppMessage(buildMenuList(from));
     return;
   }
 
-  // 🧾 View Cart
+  //  View Cart
   if (action === "view_cart") {
     if (user.cart.length === 0) {
       await sendWhatsAppMessage(buildText(from, "🛒 Your cart is empty."));
@@ -107,7 +108,7 @@ export async function handleIncomingMessage(message: any) {
     return;
   }
 
-  // 🗑️ Remove item option selected
+  //  Remove item option selected
   if (action === "remove_item") {
     if (user.cart.length === 0) {
       await sendWhatsAppMessage(buildText(from, "Your cart is already empty."));
@@ -149,7 +150,7 @@ export async function handleIncomingMessage(message: any) {
   }
 
 
-// 🛍️ Choose Delivery Type
+//  Choose Delivery Type
 if (["delivery", "pickup"].includes(action)) {
   user.deliveryType = action;
   user.step = "contact";
@@ -159,7 +160,7 @@ if (["delivery", "pickup"].includes(action)) {
   return;
 }
 
-// 📞 Contact Number
+//  Contact Number
 if (user.step === "contact" && /^\d{10}$/.test(text)) {
   user.contact = text;
   if (user.deliveryType === "delivery") {
@@ -177,7 +178,7 @@ if (user.step === "contact" && /^\d{10}$/.test(text)) {
   return;
 }
 
-// 🏠 Address / Pincode (Manual Input)
+// Address / Pincode (Manual Input)
 if (user.step === "address" && text) {
   const pincodeMatch = text.match(/\b\d{6}\b/); // detect Indian pincode (6 digits)
   if (!pincodeMatch) {
@@ -199,7 +200,7 @@ if (user.step === "address" && text) {
   return;
 }
 
-// ✅ Confirm Order
+//  Confirm Order
 if (action === "confirm_order") {
   const total = user.cart.reduce((sum: number, i: any) => sum + i.price * i.qty, 0);
   const summary = user.cart
@@ -232,11 +233,15 @@ if (action === "confirm_order") {
     )
   );
 
+  // ✅ Save to MongoDB
+  await saveOrder(from, user);
 
+  // Reset session
   user.cart = [];
   user.step = "done";
   return;
 }
+
 
 
   // Fallback
@@ -409,4 +414,34 @@ export function buildConfirmOrderButton(to: string) {
       },
     },
   };
+}
+
+
+//  Save order to MongoDB
+
+
+async function saveOrder(from: string, user: any) {
+  try {
+    await connectDB();
+
+    const cart = user.cart || [];
+    if (cart.length === 0) return console.log("⚠️ No items in cart, skipping save.");
+
+    const subtotal = cart.reduce((sum: number, i: any) => sum + i.price * i.qty, 0);
+
+    const order = await Order.create({
+      whatsappFrom: from,
+      contact: user.contact,
+      address: user.address || null,
+      pincode: user.pincode || null,
+      deliveryType: user.deliveryType,
+      items: cart,
+      subtotal,
+    });
+
+    console.log("✅ Order saved:", order._id);
+    return order;
+  } catch (err) {
+    console.error("❌ Error saving order:", err);
+  }
 }

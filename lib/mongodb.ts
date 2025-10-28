@@ -1,21 +1,33 @@
+// lib/mongodb.ts
 import mongoose from "mongoose";
 
+const MONGODB_URI = process.env.MONGODB_URI!;
 
-const uri = process.env.MONGODB_URI;
-
-if (!uri) {
-  throw new Error("❌ Missing MONGODB_URI in environment variables");
+export async function connectDB() {
+  if (mongoose.connection.readyState >= 1) return;
+  await mongoose.connect(MONGODB_URI);
+  console.log(" MongoDB Connected");
 }
 
-const MONGODB_URI: string = uri;
+// ----- Order Schema -----
+const orderSchema = new mongoose.Schema(
+  {
+    whatsappFrom: String,
+    contact: String,
+    address: String,
+    pincode: String,
+    deliveryType: String,
+    items: [
+      {
+        name: String,
+        price: Number,
+        qty: Number,
+      },
+    ],
+    subtotal: Number,
+    createdAt: { type: Date, default: Date.now },
+  },
+  { collection: "orders" }
+);
 
-export async function connectDB(): Promise<void> {
-  if (mongoose.connection.readyState >= 1) return; // already connected
-  try {
-    await mongoose.connect(MONGODB_URI);
-    console.log("✅ MongoDB connected successfully");
-  } catch (err) {
-    console.error("❌ MongoDB connection error:", err);
-    throw err;
-  }
-}
+export const Order = mongoose.models.Order || mongoose.model("Order", orderSchema);
