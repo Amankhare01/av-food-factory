@@ -1,7 +1,7 @@
 const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
 const ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
-const ADMIN_PHONE = "917317275160"; // change to your admin WhatsApp number
-import { connectDB, Order } from "@/lib/mongodb"; // <-- add this import at top of file
+const ADMIN_PHONE = process.env.ADMIN_WHATSAPP_NUMBER; // change to your admin WhatsApp number
+import { connectDB,Order } from "./mongodb";
 
 // WhatsApp Send Function
 export async function sendWhatsAppMessage(msg: any) {
