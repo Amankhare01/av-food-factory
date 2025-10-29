@@ -415,9 +415,9 @@ export function buildConfirmOrderButton(to: string) {
 
 async function saveOrder(from: string, user: any) {
   try {
-    console.log("🧠 Connecting DB before save...");
+    console.log("🧠 Connecting DB before save... save order function ");
     await connectDB();
-    console.log("🧠 Connected. Saving order...");
+    console.log("🧠 Connected. Saving order... save order function");
 
     const cart = user.cart || [];
     if (!cart.length) return console.log("⚠️ Cart empty, skipping.");
