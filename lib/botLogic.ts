@@ -226,7 +226,7 @@ if (action === "confirm_order") {
 
   console.log("💾 Saving order to DB...");
   const saved = await saveOrder(from, user);
-  console.log("🧾 saveOrder result:", saved ? saved._id : "❌ failed");
+  
 
   user.cart = [];
   user.step = "done";
