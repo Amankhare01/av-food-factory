@@ -1,4 +1,5 @@
-import { connectDB, Order } from "./mongodb";
+import { connectDB } from "./mongodb";
+import { Order } from "../models/Order";
 
 const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID!;
 const ACCESS_TOKEN = process.env.META_ACCESS_TOKEN!;
@@ -408,12 +409,11 @@ async function saveOrder(from: string, user: any) {
     console.log("🧠 Connecting DB before save...");
     await connectDB();
     console.log("✅ DB connected, now saving...");
-
+    console.log("user cart length = ",user.cart?.length);
     if (!user.cart?.length) {
       console.log("⚠️ No items in cart, skipping save.");
       return;
     }
-
     const subtotal = user.cart.reduce((s: number, c: any) => s + c.price * c.qty, 0);
     const order = await Order.create({
       whatsappFrom: from,
@@ -425,7 +425,6 @@ async function saveOrder(from: string, user: any) {
       subtotal,
       createdAt: new Date(),
     });
-
     console.log("✅ Order saved to MongoDB:", order._id);
     return order;
   } catch (err) {
