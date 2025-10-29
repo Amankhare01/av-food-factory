@@ -1,4 +1,4 @@
-import { connectDB } from "./mongodb";
+import connectDB from "./mongodb";
 import { Order } from "../models/Order";
 
 const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID!;

@@ -1,22 +1,28 @@
 import mongoose from "mongoose";
 
-export async function connectDB() {
-  console.log("🔌 connectDB called"); // ✅ prove entry
-  console.log("process env = ",process.env.MONGODB_URI);
-  // try {
-  //   if (mongoose.connection.readyState >= 1) {
-  //     console.log("🔁 already connected");
-  //     return;
-  //   }
-
-    const uri = process.env.MONGODB_URI;
-    if (!uri) throw new Error("❌ no MONGODB_URI");
-    await mongoose.connect(uri);
-  //   console.log("✅ MongoDB connected successfully");
-  // } catch (err) {
-  //   console.error("❌ MongoDB connection error:", err);
-  // }
+const MONGODB_URI = process.env.MONGO_URI as string;
+if (!MONGODB_URI) {
+  throw new Error("please define the MONGO_URI environment variable in .env.local");
 }
- 
+let cached = (global as any).mongoose;
+if (!cached) {
+  cached = (global as any).mongoose = { conn: null, promise: null };
+}
+async function connectDB() {
+  if (cached.conn) {
+    return cached.conn;
+  }
+  if (!cached.promise) {
+    cached.promise = mongoose.connect(MONGODB_URI, {
+      dbName: "av-food-factory", 
+      bufferCommands: false,
+    }).then((mongoose) => {
+      return mongoose;
+    });
+  }
+  cached.conn = await cached.promise;
+  return cached.conn;
+}
+export default connectDB;
 
 
