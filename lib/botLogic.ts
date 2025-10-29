@@ -42,7 +42,7 @@ export async function handleIncomingMessage(message: any) {
   const listId = message.interactive?.list_reply?.id;
   const action = (buttonId || listId || text || "").trim().toLowerCase();
 
-  if (!sessions[from]) sessions[from] = { step: "start", cart: [] };
+  if (!sessions[from]) sessions[from] = { step: "start", cart: [] ,_confirmed:false};
   const user = sessions[from];
 
   console.log("📩 Incoming action:", action);
@@ -207,7 +207,7 @@ export async function handleIncomingMessage(message: any) {
         }\n\nThank you for ordering with AV Food Factory! 🍴`
       )
     );
-
+    user._confirmed=true;
     // Notify Admin
     const adminMsg = `📦 *New Order Received!*\n\nFrom: ${from}\nContact: ${
       user.contact
@@ -221,16 +221,16 @@ export async function handleIncomingMessage(message: any) {
     await sendWhatsAppMessage(buildText(ADMIN_PHONE, adminMsg));
 
     // Save Order to DB
+    // aryan coded here 
     console.log("💾 Saving order to DB...");
     console.log("from before the saveorde call = ",from);
     console.log("user before the saveorder call = ",user);
     await new Promise((r)=>setTimeout(r,5000));
     await saveOrder(from, user);
-
     await sendWhatsAppMessage(
       buildText(from, "🧾 Your order has been saved successfully! Thank you 🙏")
     );
-
+    user.
     user.cart = [];
     user.step = "done";
     return;
