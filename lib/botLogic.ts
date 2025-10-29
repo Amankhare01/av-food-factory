@@ -199,7 +199,7 @@ export async function handleIncomingMessage(message: any) {
     console.log("⚠️ Duplicate confirm_order ignored.");
     return;
   }
-  user._confirmed = true;
+ 
 
   const total = user.cart.reduce((s: number, i: any) => s + i.price * i.qty, 0);
   const summary = user.cart
@@ -219,6 +219,7 @@ export async function handleIncomingMessage(message: any) {
       }\n\nThank you for ordering with AV Food Factory! 🍴`
     )
   );
+  user._confirmed = true; // Mark as confirmed to prevent duplicates
 
   // Notify admin
   const adminMsg = `📦 *New Order Received!*\n\nFrom: ${from}\nContact: ${
