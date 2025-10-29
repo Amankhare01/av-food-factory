@@ -1,9 +1,10 @@
-const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
-const ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
-const ADMIN_PHONE = "917317275160"  ; // change to your admin WhatsApp number
-import { connectDB,Order } from "./mongodb";
+import { connectDB, Order } from "./mongodb";
 
-// WhatsApp Send Function
+const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID!;
+const ACCESS_TOKEN = process.env.META_ACCESS_TOKEN!;
+const ADMIN_PHONE = "917317275160"; // must be in E.164 format (no +)
+
+// 🧠 WhatsApp Send Function (with diagnostics)
 export async function sendWhatsAppMessage(msg: any) {
   try {
     const res = await fetch(`https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`, {
@@ -14,6 +15,7 @@ export async function sendWhatsAppMessage(msg: any) {
       },
       body: JSON.stringify(msg),
     });
+
     const text = await res.text();
     console.log("📤 WA API Response:", res.status, text);
   } catch (err) {
@@ -21,44 +23,44 @@ export async function sendWhatsAppMessage(msg: any) {
   }
 }
 
-// ----- Menu -----
+// ----- Static Menu -----
 export const MENU = [
   { id: "paneer_tikka", name: "Paneer Tikka", price: 180 },
   { id: "butter_chicken", name: "Butter Chicken", price: 250 },
   { id: "gulab_jamun", name: "Gulab Jamun", price: 80 },
 ];
 
-// temporary session store (in-memory)     
+// In-memory user sessions
 const sessions: Record<string, any> = {};
 
-//  Main Bot Logic
+// 🧩 Main Bot Logic
 export async function handleIncomingMessage(message: any) {
   const from = message.from;
   const text = message.text?.body?.trim().toLowerCase();
   const buttonId = message.interactive?.button_reply?.id;
   const listId = message.interactive?.list_reply?.id;
-  const action = buttonId || listId || text;
+  const action = (buttonId || listId || text || "").trim().toLowerCase();
 
   if (!sessions[from]) sessions[from] = { step: "start", cart: [] };
   const user = sessions[from];
 
-  console.log("📩 Incoming:", action);
+  console.log("📩 Incoming action:", action);
 
-  // Start / Greeting
+  // 🟢 Start / Greeting
   if (["hi", "hello", "menu", "start"].includes(action)) {
     user.step = "menu";
     await sendWhatsAppMessage(buildMainMenu(from));
     return;
   }
 
-  //  View Menu
+  // 🟢 View Menu
   if (action === "view_menu") {
     user.step = "choose_item";
     await sendWhatsAppMessage(buildMenuList(from));
     return;
   }
 
-  //  Item selected
+  // 🟢 Item Selected
   if (action.startsWith("item_")) {
     const itemId = action.replace("item_", "");
     const item = MENU.find((i) => i.id === itemId);
@@ -72,7 +74,7 @@ export async function handleIncomingMessage(message: any) {
     return;
   }
 
-  //  Quantity chosen
+  // 🟢 Quantity Chosen
   if (action.startsWith("qty_")) {
     const qty = Number(action.replace("qty_", ""));
     if (!user.currentItem) {
@@ -90,16 +92,16 @@ export async function handleIncomingMessage(message: any) {
     return;
   }
 
-  //  Add More Items
+  // 🟢 Add More Items
   if (action === "add_more") {
     user.step = "choose_item";
     await sendWhatsAppMessage(buildMenuList(from));
     return;
   }
 
-  //  View Cart
+  // 🟢 View Cart
   if (action === "view_cart") {
-    if (user.cart.length === 0) {
+    if (!user.cart.length) {
       await sendWhatsAppMessage(buildText(from, "🛒 Your cart is empty."));
       await sendWhatsAppMessage(buildCartOptions(from));
       return;
@@ -108,9 +110,9 @@ export async function handleIncomingMessage(message: any) {
     return;
   }
 
-  //  Remove item option selected
+  // 🟢 Remove Items
   if (action === "remove_item") {
-    if (user.cart.length === 0) {
+    if (!user.cart.length) {
       await sendWhatsAppMessage(buildText(from, "Your cart is already empty."));
       return;
     }
@@ -119,7 +121,6 @@ export async function handleIncomingMessage(message: any) {
     return;
   }
 
-  // Item removal
   if (action.startsWith("del_")) {
     const index = Number(action.replace("del_", ""));
     if (isNaN(index) || index < 0 || index >= user.cart.length) {
@@ -128,19 +129,14 @@ export async function handleIncomingMessage(message: any) {
     }
     const removed = user.cart.splice(index, 1)[0];
     await sendWhatsAppMessage(buildText(from, `🗑️ Removed *${removed.name}* from your cart.`));
-    if (user.cart.length === 0) {
-      await sendWhatsAppMessage(buildText(from, "🛒 Your cart is now empty."));
-      await sendWhatsAppMessage(buildCartOptions(from));
-    } else {
-      await sendWhatsAppMessage(buildCartSummary(from, user.cart));
-    }
+    await sendWhatsAppMessage(buildCartOptions(from));
     user.step = "cart_actions";
     return;
   }
 
-  // Proceed to checkout
+  // 🟢 Proceed to Checkout
   if (action === "proceed_checkout") {
-    if (user.cart.length === 0) {
+    if (!user.cart.length) {
       await sendWhatsAppMessage(buildText(from, "🛒 Your cart is empty."));
       return;
     }
@@ -149,99 +145,98 @@ export async function handleIncomingMessage(message: any) {
     return;
   }
 
-
-//  Choose Delivery Type
-if (["delivery", "pickup"].includes(action)) {
-  user.deliveryType = action;
-  user.step = "contact";
-  await sendWhatsAppMessage(
-    buildText(from, "📞 Please share your *10-digit contact number* to proceed.")
-  );
-  return;
-}
-
-//  Contact Number
-if (user.step === "contact" && /^\d{10}$/.test(text)) {
-  user.contact = text;
-  if (user.deliveryType === "delivery") {
-    user.step = "address";
+  // 🟢 Choose Delivery Type
+  if (["delivery", "pickup"].includes(action)) {
+    user.deliveryType = action;
+    user.step = "contact";
     await sendWhatsAppMessage(
-      buildText(
-        from,
-        "🏠 Please type your *full delivery address* including area and pincode.\n\nExample:\n`123 MG Road, Lucknow 226010`"
-      )
-    );
-  } else {
-    user.step = "confirm";
-    await sendWhatsAppMessage(buildConfirmOrderButton(from));
-  }
-  return;
-}
-
-// Address / Pincode (Manual Input)
-if (user.step === "address" && text) {
-  const pincodeMatch = text.match(/\b\d{6}\b/); // detect Indian pincode (6 digits)
-  if (!pincodeMatch) {
-    await sendWhatsAppMessage(
-      buildText(
-        from,
-        "⚠️ Please include a valid 6-digit *pincode* in your address.\n\nExample:\n`123 MG Road, Lucknow 226010`"
-      )
+      buildText(from, "📞 Please share your *10-digit contact number* to proceed.")
     );
     return;
   }
 
-  user.address = text.trim();
-  user.pincode = pincodeMatch[0];
-  user.step = "confirm";
+  // 🟢 Enter Contact Number
+  if (user.step === "contact" && /^\d{10}$/.test(text)) {
+    user.contact = text;
+    if (user.deliveryType === "delivery") {
+      user.step = "address";
+      await sendWhatsAppMessage(
+        buildText(
+          from,
+          "🏠 Please type your *full delivery address* including area and pincode.\n\nExample:\n`123 MG Road, Lucknow 226010`"
+        )
+      );
+    } else {
+      user.step = "confirm";
+      await sendWhatsAppMessage(buildConfirmOrderButton(from));
+    }
+    return;
+  }
 
-  await sendWhatsAppMessage(buildText(from, "✅ Address saved successfully!"));
-  await sendWhatsAppMessage(buildConfirmOrderButton(from));
-  return;
-}
+  // 🟢 Address / Pincode
+  if (user.step === "address" && text) {
+    const pin = text.match(/\b\d{6}\b/);
+    if (!pin) {
+      await sendWhatsAppMessage(
+        buildText(from, "⚠️ Please include a valid 6-digit *pincode* in your address.")
+      );
+      return;
+    }
+    user.address = text.trim();
+    user.pincode = pin[0];
+    user.step = "confirm";
 
-if (action === "confirm_order") {
-  const total = user.cart.reduce((s: number, i: any) => s + i.price * i.qty, 0);
-  const summary = user.cart.map((i: any) => `${i.name} ×${i.qty} — ₹${i.price * i.qty}`).join("\n");
+    await sendWhatsAppMessage(buildText(from, "✅ Address saved successfully!"));
+    await sendWhatsAppMessage(buildConfirmOrderButton(from));
+    return;
+  }
 
-  await sendWhatsAppMessage(
-    buildText(
-      from,
-      `✅ *Order Confirmed!*\n\n${summary}\nTotal: ₹${total}\n\n${
-        user.deliveryType === "delivery"
-          ? `📍 *Address:*\n${user.address}`
-          : "🏬 *Pickup order confirmed!*"
-      }\n\nThank you for ordering with AV Food Factory! 🍴`
-    )
-  );
+  // 🟢 Confirm Order
+  if (action === "confirm_order") {
+    const total = user.cart.reduce((s: number, i: any) => s + i.price * i.qty, 0);
+    const summary = user.cart.map((i: any) => `${i.name} ×${i.qty} — ₹${i.price * i.qty}`).join("\n");
 
-  const adminMsg = `📦 *New Order Received!*\n\nFrom: ${from}\nContact: ${user.contact}\nType: ${user.deliveryType}\n\n${summary}\nTotal: ₹${total}\n\n${
-    user.deliveryType === "delivery"
-      ? `🏠 Address: ${user.address}`
-      : "🏬 Pickup order"
-  }`;
+    await sendWhatsAppMessage(
+      buildText(
+        from,
+        `✅ *Order Confirmed!*\n\n${summary}\nTotal: ₹${total}\n\n${
+          user.deliveryType === "delivery"
+            ? `📍 *Address:*\n${user.address}`
+            : "🏬 *Pickup order confirmed!*"
+        }\n\nThank you for ordering with AV Food Factory! 🍴`
+      )
+    );
 
-  console.log("📤 Sending admin order message...");
-  await sendWhatsAppMessage(buildText(ADMIN_PHONE, adminMsg));
+    // Notify Admin
+    const adminMsg = `📦 *New Order Received!*\n\nFrom: ${from}\nContact: ${
+      user.contact
+    }\nType: ${user.deliveryType}\n\n${summary}\nTotal: ₹${total}\n\n${
+      user.deliveryType === "delivery"
+        ? `🏠 Address: ${user.address}`
+        : "🏬 Pickup order"
+    }`;
 
-  console.log("💾 Saving order to DB...");
-  const saved = await saveOrder(from, user);
-  console.log("✅ Order process completed for:", saved);
-  
+    console.log("📤 Sending admin order message...");
+    await sendWhatsAppMessage(buildText(ADMIN_PHONE, adminMsg));
 
-  user.cart = [];
-  user.step = "done";
-  return;
-}
+    // Save Order to DB
+    console.log("💾 Saving order to DB...");
+    await saveOrder(from, user);
 
+    await sendWhatsAppMessage(
+      buildText(from, "🧾 Your order has been saved successfully! Thank you 🙏")
+    );
 
+    user.cart = [];
+    user.step = "done";
+    return;
+  }
 
-
-  // Fallback
+  // 🟠 Fallback
   await sendWhatsAppMessage(buildMainMenu(from));
 }
 
-// ----- Builders -----
+// ----- UI Builders -----
 export function buildText(to: string, bodyText: string) {
   return { messaging_product: "whatsapp", to, type: "text", text: { body: bodyText } };
 }
@@ -326,9 +321,7 @@ export function buildCartOptions(to: string) {
 }
 
 export function buildCartSummary(to: string, cart: any[]) {
-  const summary = cart
-    .map((i, idx) => `${idx + 1}. ${i.name} ×${i.qty} — ₹${i.price * i.qty}`)
-    .join("\n");
+  const summary = cart.map((i, idx) => `${idx + 1}. ${i.name} ×${i.qty} — ₹${i.price * i.qty}`).join("\n");
   const total = cart.reduce((s: number, i: any) => s + i.price * i.qty, 0);
   return {
     messaging_product: "whatsapp",
@@ -409,31 +402,32 @@ export function buildConfirmOrderButton(to: string) {
   };
 }
 
-
-//  Save order to MongoDB
-
-
+// 🧾 Save order to MongoDB
 async function saveOrder(from: string, user: any) {
   try {
-    console.log("🧠 Connecting DB before save... save order function ");
+    console.log("🧠 Connecting DB before save...");
     await connectDB();
-    console.log("🧠 Connected. Saving order... save order function");
+    console.log("✅ DB connected, now saving...");
 
-    const cart = user.cart || [];
-    if (!cart.length) return console.log("⚠️ Cart empty, skipping.");
+    if (!user.cart?.length) {
+      console.log("⚠️ No items in cart, skipping save.");
+      return;
+    }
 
-    const subtotal = cart.reduce((s: number, c: any) => s + c.price * c.qty, 0);
+    const subtotal = user.cart.reduce((s: number, c: any) => s + c.price * c.qty, 0);
     const order = await Order.create({
       whatsappFrom: from,
       contact: user.contact,
-      address: user.address,
-      pincode: user.pincode,
+      address: user.address || null,
+      pincode: user.pincode || null,
       deliveryType: user.deliveryType,
-      items: cart,
+      items: user.cart,
       subtotal,
+      createdAt: new Date(),
     });
 
-    console.log("✅ Order saved:", order._id);
+    console.log("✅ Order saved to MongoDB:", order._id);
+    return order;
   } catch (err) {
     console.error("❌ Error saving order:", err);
   }
