@@ -1,6 +1,6 @@
 const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
 const ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
-const ADMIN_PHONE = "917317275160"; // change to your admin WhatsApp number
+const ADMIN_PHONE = "917317275160"  ; // change to your admin WhatsApp number
 import { connectDB,Order } from "./mongodb";
 
 // WhatsApp Send Function
@@ -28,7 +28,7 @@ export const MENU = [
   { id: "gulab_jamun", name: "Gulab Jamun", price: 80 },
 ];
 
-// temporary session store (in-memory)
+// temporary session store (in-memory)     
 const sessions: Record<string, any> = {};
 
 //  Main Bot Logic
@@ -200,14 +200,10 @@ if (user.step === "address" && text) {
   return;
 }
 
-//  Confirm Order
 if (action === "confirm_order") {
-  const total = user.cart.reduce((sum: number, i: any) => sum + i.price * i.qty, 0);
-  const summary = user.cart
-    .map((i: any) => `${i.name} ×${i.qty} — ₹${i.price * i.qty}`)
-    .join("\n");
+  const total = user.cart.reduce((s: number, i: any) => s + i.price * i.qty, 0);
+  const summary = user.cart.map((i: any) => `${i.name} ×${i.qty} — ₹${i.price * i.qty}`).join("\n");
 
-  // Confirmation message to customer
   await sendWhatsAppMessage(
     buildText(
       from,
@@ -219,28 +215,24 @@ if (action === "confirm_order") {
     )
   );
 
-  // Notification to admin
-  await sendWhatsAppMessage(
-    buildText(
-      ADMIN_PHONE,
-      `📦 *New Order Received!*\n\nFrom: ${from}\nContact: ${
-        user.contact
-      }\nType: ${user.deliveryType}\n\n${summary}\nTotal: ₹${total}\n\n${
-        user.deliveryType === "delivery"
-          ? `🏠 Address: ${user.address}`
-          : "🏬 Pickup order"
-      }`
-    )
-  );
+  const adminMsg = `📦 *New Order Received!*\n\nFrom: ${from}\nContact: ${user.contact}\nType: ${user.deliveryType}\n\n${summary}\nTotal: ₹${total}\n\n${
+    user.deliveryType === "delivery"
+      ? `🏠 Address: ${user.address}`
+      : "🏬 Pickup order"
+  }`;
 
-  // ✅ Save to MongoDB
-  await saveOrder(from, user);
+  console.log("📤 Sending admin order message...");
+  await sendWhatsAppMessage(buildText(ADMIN_PHONE, adminMsg));
 
-  // Reset session
+  console.log("💾 Saving order to DB...");
+  const saved = await saveOrder(from, user);
+  console.log("🧾 saveOrder result:", saved ? saved._id : "❌ failed");
+
   user.cart = [];
   user.step = "done";
   return;
 }
+
 
 
 
@@ -422,25 +414,25 @@ export function buildConfirmOrderButton(to: string) {
 
 async function saveOrder(from: string, user: any) {
   try {
+    console.log("🧠 Connecting DB before save...");
     await connectDB();
+    console.log("🧠 Connected. Saving order...");
 
     const cart = user.cart || [];
-    if (cart.length === 0) return console.log("⚠️ No items in cart, skipping save.");
+    if (!cart.length) return console.log("⚠️ Cart empty, skipping.");
 
-    const subtotal = cart.reduce((sum: number, i: any) => sum + i.price * i.qty, 0);
-
+    const subtotal = cart.reduce((s: number, c: any) => s + c.price * c.qty, 0);
     const order = await Order.create({
       whatsappFrom: from,
       contact: user.contact,
-      address: user.address || null,
-      pincode: user.pincode || null,
+      address: user.address,
+      pincode: user.pincode,
       deliveryType: user.deliveryType,
       items: cart,
       subtotal,
     });
 
     console.log("✅ Order saved:", order._id);
-    return order;
   } catch (err) {
     console.error("❌ Error saving order:", err);
   }
