@@ -224,6 +224,7 @@ export async function handleIncomingMessage(message: any) {
     console.log("💾 Saving order to DB...");
     console.log("from before the saveorde call = ",from);
     console.log("user before the saveorder call = ",user);
+    await new Promise((r)=>setTimeout(r,5000));
     await saveOrder(from, user);
 
     await sendWhatsAppMessage(
