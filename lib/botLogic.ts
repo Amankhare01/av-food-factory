@@ -193,48 +193,60 @@ export async function handleIncomingMessage(message: any) {
   }
 
   // 🟢 Confirm Order
-  if (action === "confirm_order") {
-    const total = user.cart.reduce((s: number, i: any) => s + i.price * i.qty, 0);
-    const summary = user.cart.map((i: any) => `${i.name} ×${i.qty} — ₹${i.price * i.qty}`).join("\n");
-
-    await sendWhatsAppMessage(
-      buildText(
-        from,
-        `✅ *Order Confirmed!*\n\n${summary}\nTotal: ₹${total}\n\n${
-          user.deliveryType === "delivery"
-            ? `📍 *Address:*\n${user.address}`
-            : "🏬 *Pickup order confirmed!*"
-        }\n\nThank you for ordering with AV Food Factory! 🍴`
-      )
-    );
-    user._confirmed=true;
-    // Notify Admin
-    const adminMsg = `📦 *New Order Received!*\n\nFrom: ${from}\nContact: ${
-      user.contact
-    }\nType: ${user.deliveryType}\n\n${summary}\nTotal: ₹${total}\n\n${
-      user.deliveryType === "delivery"
-        ? `🏠 Address: ${user.address}`
-        : "🏬 Pickup order"
-    }`;
-
-    console.log("📤 Sending admin order message...");
-    await sendWhatsAppMessage(buildText(ADMIN_PHONE, adminMsg));
-
-    // Save Order to DB
-    // aryan coded here 
-    console.log("💾 Saving order to DB...");
-    console.log("from before the saveorde call = ",from);
-    console.log("user before the saveorder call = ",user);
-    await new Promise((r)=>setTimeout(r,5000));
-    await saveOrder(from, user);
-    await sendWhatsAppMessage(
-      buildText(from, "🧾 Your order has been saved successfully! Thank you 🙏")
-    );
-    user.
-    user.cart = [];
-    user.step = "done";
+ if (action === "confirm_order") {
+  // 🛡 Prevent duplicate confirmations
+  if (user._confirmed) {
+    console.log("⚠️ Duplicate confirm_order ignored.");
     return;
   }
+  user._confirmed = true;
+
+  const total = user.cart.reduce((s: number, i: any) => s + i.price * i.qty, 0);
+  const summary = user.cart
+    .map((i: any) => `${i.name} ×${i.qty} — ₹${i.price * i.qty}`)
+    .join("\n");
+
+  console.log("🟢 Processing order confirmation for:", from);
+
+  // Send confirmation to customer
+  await sendWhatsAppMessage(
+    buildText(
+      from,
+      `✅ *Order Confirmed!*\n\n${summary}\nTotal: ₹${total}\n\n${
+        user.deliveryType === "delivery"
+          ? `📍 *Address:*\n${user.address}`
+          : "🏬 *Pickup order confirmed!*"
+      }\n\nThank you for ordering with AV Food Factory! 🍴`
+    )
+  );
+
+  // Notify admin
+  const adminMsg = `📦 *New Order Received!*\n\nFrom: ${from}\nContact: ${
+    user.contact
+  }\nType: ${user.deliveryType}\n\n${summary}\nTotal: ₹${total}\n\n${
+    user.deliveryType === "delivery"
+      ? `🏠 Address: ${user.address}`
+      : "🏬 Pickup order"
+  }`;
+
+  console.log("📤 Sending admin order message...");
+  await sendWhatsAppMessage(buildText(ADMIN_PHONE, adminMsg));
+
+  // Save to DB
+  console.log("💾 Saving order to DB...");
+  await saveOrder(from, user);
+
+  // Confirm save
+  await sendWhatsAppMessage(
+    buildText(from, "🧾 Your order has been saved successfully! Thank you 🙏")
+  );
+
+  // Reset session
+  user.cart = [];
+  user.step = "done";
+  return;
+}
+
 
   // 🟠 Fallback
   await sendWhatsAppMessage(buildMainMenu(from));
