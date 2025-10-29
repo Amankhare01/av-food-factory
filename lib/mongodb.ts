@@ -1,16 +1,15 @@
 import mongoose from "mongoose";
 
 export async function connectDB() {
+  console.log("🔌 connectDB called"); // ✅ prove entry
   try {
     if (mongoose.connection.readyState >= 1) {
-
+      console.log("🔁 already connected");
       return;
     }
 
     const uri = process.env.MONGODB_URI;
-    if (!uri) {
-      throw new Error("❌ MONGODB_URI not found in environment");
-    }
+    if (!uri) throw new Error("❌ no MONGODB_URI");
 
     await mongoose.connect(uri);
     console.log("✅ MongoDB connected successfully");
@@ -18,7 +17,7 @@ export async function connectDB() {
     console.error("❌ MongoDB connection error:", err);
   }
 }
-
+ 
 
 const orderSchema = new mongoose.Schema({
   whatsappFrom: String,
