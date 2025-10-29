@@ -31,18 +31,28 @@ export const MENU = [
   { id: "gulab_jamun", name: "Gulab Jamun", price: 80 },
 ];
 
-// In-memory user sessions
+// 🧩 In-memory storage
 const sessions: Record<string, any> = {};
+const processedMessages = new Set<string>(); // ✅ prevent duplicate webhooks
 
 // 🧩 Main Bot Logic
 export async function handleIncomingMessage(message: any) {
+  const msgId = message.id;
   const from = message.from;
   const text = message.text?.body?.trim().toLowerCase();
   const buttonId = message.interactive?.button_reply?.id;
   const listId = message.interactive?.list_reply?.id;
   const action = (buttonId || listId || text || "").trim().toLowerCase();
 
-  if (!sessions[from]) sessions[from] = { step: "start", cart: [] ,_confirmed:false};
+  // 🛡 Prevent duplicate webhook delivery
+  if (processedMessages.has(msgId)) {
+    console.log("⚠️ Duplicate webhook ignored:", msgId);
+    return;
+  }
+  processedMessages.add(msgId);
+  setTimeout(() => processedMessages.delete(msgId), 5 * 60 * 1000); // cleanup in 5 min
+
+  if (!sessions[from]) sessions[from] = { step: "start", cart: [], _confirmed: false };
   const user = sessions[from];
 
   console.log("📩 Incoming action:", action);
@@ -150,9 +160,7 @@ export async function handleIncomingMessage(message: any) {
   if (["delivery", "pickup"].includes(action)) {
     user.deliveryType = action;
     user.step = "contact";
-    await sendWhatsAppMessage(
-      buildText(from, "📞 Please share your *10-digit contact number* to proceed.")
-    );
+    await sendWhatsAppMessage(buildText(from, "📞 Please share your *10-digit contact number* to proceed."));
     return;
   }
 
@@ -178,9 +186,7 @@ export async function handleIncomingMessage(message: any) {
   if (user.step === "address" && text) {
     const pin = text.match(/\b\d{6}\b/);
     if (!pin) {
-      await sendWhatsAppMessage(
-        buildText(from, "⚠️ Please include a valid 6-digit *pincode* in your address.")
-      );
+      await sendWhatsAppMessage(buildText(from, "⚠️ Please include a valid 6-digit *pincode* in your address."));
       return;
     }
     user.address = text.trim();
@@ -193,61 +199,54 @@ export async function handleIncomingMessage(message: any) {
   }
 
   // 🟢 Confirm Order
- if (action === "confirm_order") {
-  // 🛡 Prevent duplicate confirmations
-  if (user._confirmed) {
-    console.log("⚠️ Duplicate confirm_order ignored.");
+  if (action === "confirm_order") {
+    // 🛡 Prevent re-processing
+    if (user._confirmed) {
+      console.log("⚠️ Duplicate confirm_order ignored.");
+      return;
+    }
+    user._confirmed = true;
+    // auto-unlock after 10 min (allows next order)
+    setTimeout(() => (user._confirmed = false), 10 * 60 * 1000);
+
+    const total = user.cart.reduce((s: number, i: any) => s + i.price * i.qty, 0);
+    const summary = user.cart.map((i: any) => `${i.name} ×${i.qty} — ₹${i.price * i.qty}`).join("\n");
+
+    console.log("🟢 Processing order confirmation for:", from);
+
+    // Send confirmation to customer
+    await sendWhatsAppMessage(
+      buildText(
+        from,
+        `✅ *Order Confirmed!*\n\n${summary}\nTotal: ₹${total}\n\n${
+          user.deliveryType === "delivery"
+            ? `📍 *Address:*\n${user.address}`
+            : "🏬 *Pickup order confirmed!*"
+        }\n\nThank you for ordering with AV Food Factory! 🍴`
+      )
+    );
+
+    // Notify admin
+    const adminMsg = `📦 *New Order Received!*\n\nFrom: ${from}\nContact: ${
+      user.contact
+    }\nType: ${user.deliveryType}\n\n${summary}\nTotal: ₹${total}\n\n${
+      user.deliveryType === "delivery" ? `🏠 Address: ${user.address}` : "🏬 Pickup order"
+    }`;
+
+    console.log("📤 Sending admin order message...");
+    await sendWhatsAppMessage(buildText(ADMIN_PHONE, adminMsg));
+
+    // Save to DB
+    console.log("💾 Saving order to DB...");
+    await saveOrder(from, user);
+
+    await sendWhatsAppMessage(buildText(from, "🧾 Your order has been saved successfully! Thank you 🙏"));
+
+    // Reset cart for next order
+    user.cart = [];
+    user.step = "done";
     return;
   }
- 
-
-  const total = user.cart.reduce((s: number, i: any) => s + i.price * i.qty, 0);
-  const summary = user.cart
-    .map((i: any) => `${i.name} ×${i.qty} — ₹${i.price * i.qty}`)
-    .join("\n");
-
-  console.log("🟢 Processing order confirmation for:", from);
-
-  // Send confirmation to customer
-  await sendWhatsAppMessage(
-    buildText(
-      from,
-      `✅ *Order Confirmed!*\n\n${summary}\nTotal: ₹${total}\n\n${
-        user.deliveryType === "delivery"
-          ? `📍 *Address:*\n${user.address}`
-          : "🏬 *Pickup order confirmed!*"
-      }\n\nThank you for ordering with AV Food Factory! 🍴`
-    )
-  );
-  user._confirmed = true; // Mark as confirmed to prevent duplicates
-
-  // Notify admin
-  const adminMsg = `📦 *New Order Received!*\n\nFrom: ${from}\nContact: ${
-    user.contact
-  }\nType: ${user.deliveryType}\n\n${summary}\nTotal: ₹${total}\n\n${
-    user.deliveryType === "delivery"
-      ? `🏠 Address: ${user.address}`
-      : "🏬 Pickup order"
-  }`;
-
-  console.log("📤 Sending admin order message...");
-  await sendWhatsAppMessage(buildText(ADMIN_PHONE, adminMsg));
-
-  // Save to DB
-  console.log("💾 Saving order to DB...");
-  await saveOrder(from, user);
-
-  // Confirm save
-  await sendWhatsAppMessage(
-    buildText(from, "🧾 Your order has been saved successfully! Thank you 🙏")
-  );
-
-  // Reset session
-  user.cart = [];
-  user.step = "done";
-  return;
-}
-
 
   // 🟠 Fallback
   await sendWhatsAppMessage(buildMainMenu(from));
@@ -425,7 +424,6 @@ async function saveOrder(from: string, user: any) {
     console.log("🧠 Connecting DB before save...");
     await connectDB();
     console.log("✅ DB connected, now saving...");
-    console.log("user cart length = ",user.cart?.length);
     if (!user.cart?.length) {
       console.log("⚠️ No items in cart, skipping save.");
       return;
