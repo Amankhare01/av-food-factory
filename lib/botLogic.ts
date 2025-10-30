@@ -33,12 +33,13 @@ const processed = new Set<string>();
 export async function handleIncomingMessage(message: any) {
   const msgId = message.id;
   const from = message.from;
-  const text = message.text?.body?.trim().toLowerCase();
+  const text = message.text?.body?.trim();
+  const lowerText = text?.toLowerCase();
   const btn = message.interactive?.button_reply?.id;
   const list = message.interactive?.list_reply?.id;
-  const action = (btn || list || text || "").trim().toLowerCase();
+  const action = (btn || list || lowerText || "").trim().toLowerCase();
 
-  // ✅ ignore duplicates
+  // ✅ prevent duplicate triggers
   if (processed.has(msgId)) {
     console.log("⚠️ Duplicate ignored:", msgId);
     return;
@@ -46,128 +47,104 @@ export async function handleIncomingMessage(message: any) {
   processed.add(msgId);
   setTimeout(() => processed.delete(msgId), 600000);
 
-  // session
   if (!sessions[from]) sessions[from] = { step: "start", cart: [], _confirmed: false };
   const user = sessions[from];
-  console.log("📩", action);
+  console.log("📩 Incoming:", action, "| step:", user.step);
 
-  switch (true) {
-    case ["hi", "hello", "menu", "start"].includes(action):
+  // ✅ handle text-based steps first (before switch)
+  if (user.step === "contact" && /^\d{10}$/.test(lowerText)) {
+    user.contact = lowerText;
+    if (user.deliveryType === "delivery") {
+      user.step = "address";
+      await sendWhatsAppMessage(
+        buildText(from, "🏠 Please type your *full delivery address* including area and pincode.")
+      );
+    } else {
+      user.step = "confirm";
+      await sendWhatsAppMessage(buildConfirmOrderButton(from));
+    }
+    return;
+  }
+
+  if (user.step === "address" && text) {
+    const pin = text.match(/\b\d{6}\b/);
+    if (!pin) {
+      await sendWhatsAppMessage(buildText(from, "⚠️ Please include a valid 6-digit *pincode* in your address."));
+      return;
+    }
+    user.address = text.trim();
+    user.pincode = pin[0];
+    user.step = "confirm";
+    await sendWhatsAppMessage(buildText(from, "✅ Address saved successfully!"));
+    await sendWhatsAppMessage(buildConfirmOrderButton(from));
+    return;
+  }
+
+  // ✅ main switch for button or list actions
+  switch (action) {
+    case "hi":
+    case "hello":
+    case "menu":
+    case "start":
       user.step = "menu";
       await sendWhatsAppMessage(buildMainMenu(from));
       break;
 
-    case action === "view_menu":
+    case "view_menu":
       user.step = "choose_item";
       await sendWhatsAppMessage(buildMenuList(from));
       break;
 
-    case action.startsWith("item_"): {
-      const item = MENU.find(i => i.id === action.replace("item_", ""));
-      if (!item) return await sendWhatsAppMessage(buildText(from, "❌ Item not found."));
-      user.currentItem = item;
-      user.step = "quantity";
-      await sendWhatsAppMessage(buildQuantityButtons(from, item.name));
-      break;
-    }
-
-    case action.startsWith("qty_"): {
-      const qty = Number(action.replace("qty_", ""));
-      if (!user.currentItem) return;
-      user.cart.push({ ...user.currentItem, qty });
-      user.currentItem = null;
-      user.step = "cart";
-      await sendWhatsAppMessage(buildText(from, `🛒 Added *${qty} × ${user.cart.at(-1).name}*.`));
-      await sendWhatsAppMessage(buildCartOptions(from));
-      break;
-    }
-
-    case action === "add_more":
+    case "add_more":
       user.step = "choose_item";
       await sendWhatsAppMessage(buildMenuList(from));
       break;
 
-    case action === "view_cart":
+    case "view_cart":
       if (!user.cart.length) {
-        await sendWhatsAppMessage(buildText(from, "🛒 Cart empty."));
+        await sendWhatsAppMessage(buildText(from, "🛒 Cart is empty."));
         await sendWhatsAppMessage(buildCartOptions(from));
       } else {
         await sendWhatsAppMessage(buildCartSummary(from, user.cart));
       }
       break;
 
-    case action === "remove_item":
+    case "remove_item":
       if (!user.cart.length)
-        return await sendWhatsAppMessage(buildText(from, "Cart already empty."));
+        return await sendWhatsAppMessage(buildText(from, "Your cart is already empty."));
       user.step = "removing";
       await sendWhatsAppMessage(buildRemoveItemList(from, user.cart));
       break;
 
-    case action.startsWith("del_"): {
-      const idx = Number(action.replace("del_", ""));
-      if (isNaN(idx) || !user.cart[idx])
-        return await sendWhatsAppMessage(buildText(from, "❌ Invalid selection."));
-      const removed = user.cart.splice(idx, 1)[0];
-      await sendWhatsAppMessage(buildText(from, `🗑️ Removed *${removed.name}*.`));
-      await sendWhatsAppMessage(buildCartOptions(from));
-      break;
-    }
-
-    case action === "proceed_checkout":
+    case "proceed_checkout":
       if (!user.cart.length)
-        return await sendWhatsAppMessage(buildText(from, "🛒 Cart empty."));
+        return await sendWhatsAppMessage(buildText(from, "🛒 Cart is empty."));
       user.step = "delivery";
       await sendWhatsAppMessage(buildDeliveryTypeButtons(from));
       break;
 
-    case ["delivery", "pickup"].includes(action):
+    case "delivery":
+    case "pickup":
       user.deliveryType = action;
       user.step = "contact";
-      await sendWhatsAppMessage(buildText(from, "📞 Send your *10-digit contact number*."));
+      await sendWhatsAppMessage(buildText(from, "📞 Please share your *10-digit contact number*"));
       break;
 
-    case user.step === "contact" && /^\d{10}$/.test(text):
-      user.contact = text;
-      if (user.deliveryType === "delivery") {
-        user.step = "address";
-        await sendWhatsAppMessage(buildText(from, "🏠 Send full address incl. pincode."));
-      } else {
-        user.step = "confirm";
-        await sendWhatsAppMessage(buildConfirmOrderButton(from));
-      }
-      break;
-
-    case user.step === "address" && text: {
-      const pin = text.match(/\b\d{6}\b/);
-      if (!pin)
-        return await sendWhatsAppMessage(buildText(from, "⚠️ Include a valid 6-digit pincode."));
-      user.address = text;
-      user.pincode = pin[0];
-      user.step = "confirm";
-      await sendWhatsAppMessage(buildText(from, "✅ Address saved."));
-      await sendWhatsAppMessage(buildConfirmOrderButton(from));
-      break;
-    }
-
-    case action === "confirm_order": {
+    case "confirm_order":
       if (user._confirmed) {
         console.log("⚠️ duplicate confirm ignored");
         return;
       }
-
-      // guard: empty cart
       if (!user.cart?.length) {
         console.log("⚠️ empty cart confirm blocked");
         return;
       }
-
       user._confirmed = true;
       setTimeout(() => (user._confirmed = false), 900000);
 
       const total = user.cart.reduce((s: number, i: any) => s + i.price * i.qty, 0);
       const summary = user.cart.map((i: any) => `${i.name} ×${i.qty} — ₹${i.price * i.qty}`).join("\n");
 
-      // customer confirm
       await sendWhatsAppMessage(
         buildText(
           from,
@@ -179,7 +156,6 @@ export async function handleIncomingMessage(message: any) {
         )
       );
 
-      // admin msg
       const adminText = `📦 *New Order*\nFrom: ${from}\n📞 ${user.contact}\nType: ${user.deliveryType}\n\n${summary}\nTotal: ₹${total}\n\n${
         user.deliveryType === "delivery" ? `🏠 ${user.address}` : "Pickup order"
       }`;
@@ -190,12 +166,17 @@ export async function handleIncomingMessage(message: any) {
       user.cart = [];
       user.step = "done";
       break;
-    }
 
     default:
-      await sendWhatsAppMessage(buildMainMenu(from));
+      // only show fallback if no other step in progress
+      if (user.step === "done" || user.step === "start") {
+        await sendWhatsAppMessage(buildMainMenu(from));
+      } else {
+        console.log("ℹ️ ignored unrelated text during step:", user.step);
+      }
   }
 }
+
 
 // ----- Builders -----
 function buildText(to: string, body: string) {
