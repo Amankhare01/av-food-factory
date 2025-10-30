@@ -45,12 +45,12 @@ export async function POST(req: NextRequest) {
   console.log("📩 Incoming webhook hit!");
 
   // optional signature verification
-  try {
-    const isValid = verifySignature(req, rawBody);
-    console.log("🔑 Signature valid?", isValid);
-  } catch (e) {
-    console.warn("⚠️ Signature skipped:", (e as Error).message);
-  }
+  // try {
+  //   const isValid = verifySignature(req, rawBody);
+  //   console.log("🔑 Signature valid?", isValid);
+  // } catch (e) {
+  //   console.warn("⚠️ Signature skipped:", (e as Error).message);
+  // }
 
   try {
     await connectDB();
