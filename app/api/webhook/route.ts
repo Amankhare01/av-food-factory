@@ -7,19 +7,19 @@ import { handleIncoming } from "@/lib/botLogic";
 const VERIFY_TOKEN = process.env.META_VERIFY_TOKEN!;
 
 /** Optional signature check — using VERIFY_TOKEN as fallback */
-function verifySignature(req: NextRequest, rawBody: string) {
-  const sig = req.headers.get("x-hub-signature-256");
-  if (!sig) return false;
-  try {
-    const hmac = crypto.createHmac("sha256", VERIFY_TOKEN);
-    hmac.update(rawBody, "utf8");
-    const expected = `sha256=${hmac.digest("hex")}`;
-    return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
-  } catch (err) {
-    console.error("❌ Signature verify error:", err);
-    return false;
-  }
-}
+// function verifySignature(req: NextRequest, rawBody: string) {
+//   const sig = req.headers.get("x-hub-signature-256");
+//   if (!sig) return false;
+//   try {
+//     const hmac = crypto.createHmac("sha256", VERIFY_TOKEN);
+//     hmac.update(rawBody, "utf8");
+//     const expected = `sha256=${hmac.digest("hex")}`;
+//     return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
+//   } catch (err) {
+//     console.error("❌ Signature verify error:", err);
+//     return false;
+//   }
+// }
 
 /** ✅ Webhook verification (GET) */
 export async function GET(req: NextRequest) {
@@ -44,13 +44,8 @@ export async function POST(req: NextRequest) {
   const rawBody = await req.text();
   console.log("📩 Incoming webhook hit!");
 
-  // optional signature verification
-  // try {
-  //   const isValid = verifySignature(req, rawBody);
-  //   console.log("🔑 Signature valid?", isValid);
-  // } catch (e) {
-  //   console.warn("⚠️ Signature skipped:", (e as Error).message);
-  // }
+
+
 
   try {
     await connectDB();

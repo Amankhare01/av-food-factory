@@ -1,6 +1,6 @@
-const ACCESS_TOKEN = process.env.META_ACCESS_TOKEN!;
-const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID!;
-const ADMIN_NUMBER = process.env.ADMIN_WHATSAPP_NUMBER!; // E.164 without '+'
+const ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
+const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
+const ADMIN_NUMBER = '916306512288'; // E.164 without '+'
 
 /** Shared fetch helper with logging */
 async function metaFetch(body: any) {
