@@ -3,7 +3,6 @@ import { Order } from "@/models/Order";
 import { sendText, sendButtons, sendList, notifyAdmin } from "@/lib/meta";
 import type { WAMsg, SessionState, CartItem } from "@/lib/types";
 
-// ---- Menu ----
 export const MENU = [
   { id: "paneer_tikka", name: "Paneer Tikka", price: 180 },
   { id: "butter_chicken", name: "Butter Chicken", price: 250 },
@@ -40,24 +39,38 @@ function findMenuItem(id: string) {
   return MENU.find((m) => m.id === id);
 }
 
-// ---- FSM ----
+// ⚙️ Main bot logic handler with detailed logging
 export async function handleIncoming(msg: WAMsg) {
-  const user = msg.from;
+  console.log("📥 [INCOMING]", {
+    from: msg.from,
+    type: msg.type,
+    text: msg.text?.body,
+    interactive: msg.interactive?.button_reply || msg.interactive?.list_reply,
+  });
 
-  // upsert session
+  const user = msg.from;
   let session = await Session.findOne({ user });
-  if (!session) session = await Session.create({ user, state: "IDLE", cart: [] });
+
+  if (!session) {
+    session = await Session.create({ user, state: "IDLE", cart: [] });
+    console.log("🆕 [SESSION CREATED]", user);
+  } else {
+    console.log("📄 [SESSION FOUND]", { user, state: session.state });
+  }
 
   const text = msg.text?.body?.trim().toLowerCase() || "";
   await Session.updateOne({ _id: session._id }, { lastMessageAt: new Date() });
 
-  // Global intents
+  // GLOBAL COMMANDS
   if (["menu", "order", "start", "hi", "hello", "hey"].includes(text)) {
+    console.log("🔁 [GLOBAL COMMAND] Menu flow triggered by", user);
     await Session.updateOne({ _id: session._id }, { state: "BROWSING_MENU", tempItemId: null });
     await sendList(user, "AV Food Factory", "Browse & add items to cart:", menuSections());
     return;
   }
+
   if (["cart", "view cart"].includes(text)) {
+    console.log("🛒 [CART VIEW] User requested cart:", user);
     await sendButtons(user, renderCart(session.cart), [
       { id: "btn_checkout", title: "Checkout" },
       { id: "btn_browse", title: "Add more" },
@@ -65,30 +78,36 @@ export async function handleIncoming(msg: WAMsg) {
     ]);
     return;
   }
+
   if (["clear", "clear cart"].includes(text)) {
+    console.log("🧹 [CART CLEARED]", user);
     await Session.updateOne({ _id: session._id }, { cart: [] });
     await sendText(user, "🧹 Cart cleared. Type *menu* to add items.");
     return;
   }
 
+  // Handle message types
   switch (msg.type) {
     case "interactive": {
-      const choice =
-        msg.interactive?.button_reply?.id || msg.interactive?.list_reply?.id || "";
+      const choice = msg.interactive?.button_reply?.id || msg.interactive?.list_reply?.id || "";
+      console.log("🎛 [INTERACTIVE INPUT]", { user, choice });
 
-      // Button actions
+      // BUTTONS
       switch (choice) {
         case "btn_browse":
+          console.log("🧾 User chose to browse more items");
           await Session.updateOne({ _id: session._id }, { state: "BROWSING_MENU" });
           await sendList(user, "AV Food Factory", "Browse & add items to cart:", menuSections());
           return;
 
         case "btn_clear":
+          console.log("🧹 User cleared cart");
           await Session.updateOne({ _id: session._id }, { cart: [] });
           await sendText(user, "🧹 Cart cleared. Type *menu* to add items.");
           return;
 
         case "btn_checkout":
+          console.log("💳 User proceeded to checkout");
           if (!session.cart.length) {
             await sendText(user, "Your cart is empty. Type *menu* to add items.");
             return;
@@ -98,10 +117,11 @@ export async function handleIncoming(msg: WAMsg) {
           return;
       }
 
-      // List actions: add_*
+      // LIST SELECTIONS
       if (choice.startsWith("add_")) {
         const itemId = choice.replace("add_", "");
         const item = findMenuItem(itemId);
+        console.log("➕ [ADD ITEM]", { user, itemId });
         if (!item) {
           await sendText(user, "Item not found. Type *menu* to try again.");
           return;
@@ -118,22 +138,26 @@ export async function handleIncoming(msg: WAMsg) {
         return;
       }
 
-      // Quantity buttons
+      // QUANTITY BUTTONS
       if (choice.startsWith("qty_")) {
+        const qty = Number(choice.replace("qty_", ""));
+        console.log("🍽 [QUANTITY CHOSEN]", { user, qty });
         if (session.state !== "ADDING_ITEM_QTY" || !session.tempItemId) {
           await sendText(user, "No item selected. Type *menu* to add items.");
           return;
         }
-        const qty = Number(choice.replace("qty_", ""));
         const item = findMenuItem(session.tempItemId);
-        if (!item || !Number.isFinite(qty) || qty <= 0) {
+        if (!item || qty <= 0) {
           await sendText(user, "Invalid quantity.");
           return;
         }
+
         const existing = session.cart.find((c: any) => c.id === item.id);
         if (existing) existing.qty += qty;
         else session.cart.push({ id: item.id, name: item.name, price: item.price, qty });
         await session.save();
+
+        console.log("🛍 [CART UPDATED]", session.cart);
 
         await sendButtons(
           user,
@@ -151,12 +175,9 @@ export async function handleIncoming(msg: WAMsg) {
         return;
       }
 
-      // Confirm buttons
+      // CONFIRMATION
       if (choice === "confirm_yes") {
-        if (session.state !== "CONFIRMING_ORDER" || !session.deliveryAddress) {
-          await sendText(user, "Nothing to confirm yet.");
-          return;
-        }
+        console.log("✅ [ORDER CONFIRMATION]", user);
         const subtotal = calcSubtotal(session.cart);
         const order = await Order.create({
           user,
@@ -164,6 +185,7 @@ export async function handleIncoming(msg: WAMsg) {
           subtotal,
           deliveryAddress: session.deliveryAddress,
         });
+        console.log("🧾 [ORDER CREATED]", { id: order._id, subtotal });
         await sendText(
           user,
           `✅ Order placed!\nOrder ID: ${order._id}\nTotal: ₹${subtotal}\nETA: ~35–45 min.\n\nThank you!`
@@ -179,17 +201,21 @@ export async function handleIncoming(msg: WAMsg) {
         );
         return;
       }
+
       if (choice === "confirm_no") {
+        console.log("✏️ [USER EDITING ADDRESS]");
         await Session.updateOne({ _id: session._id }, { state: "BROWSING_MENU" });
         await sendList(user, "AV Food Factory", "No problem. Continue browsing:", menuSections());
         return;
       }
 
+      console.log("❓ [UNKNOWN INTERACTIVE CHOICE]", choice);
       await sendText(user, "I didn't get that. Type *menu* to browse.");
       return;
     }
 
     case "location": {
+      console.log("📍 [LOCATION RECEIVED]", msg.location);
       if (session.state === "ASK_ADDRESS") {
         const { latitude, longitude, address } = msg.location!;
         const addr = address
@@ -214,6 +240,7 @@ export async function handleIncoming(msg: WAMsg) {
     }
 
     case "text": {
+      console.log("💬 [TEXT RECEIVED]", { text, state: session.state });
       switch (session.state as SessionState) {
         case "ASK_ADDRESS": {
           const addr = msg.text?.body?.trim();
@@ -221,6 +248,7 @@ export async function handleIncoming(msg: WAMsg) {
             await sendText(user, "Please type your address in one message.");
             return;
           }
+          console.log("🏠 [ADDRESS RECEIVED]", addr);
           await Session.updateOne(
             { _id: session._id },
             { deliveryAddress: addr, state: "CONFIRMING_ORDER" }
@@ -235,12 +263,15 @@ export async function handleIncoming(msg: WAMsg) {
           );
           return;
         }
+
         default:
           if (text.includes("menu")) {
+            console.log("📋 [REDIRECT TO MENU]");
             await Session.updateOne({ _id: session._id }, { state: "BROWSING_MENU" });
             await sendList(user, "AV Food Factory", "Browse & add items to cart:", menuSections());
             return;
           }
+          console.log("🤖 [FALLBACK PROMPT]");
           await sendButtons(user, "What would you like to do?", [
             { id: "btn_browse", title: "View Menu" },
             { id: "btn_checkout", title: "Checkout" },
@@ -251,6 +282,7 @@ export async function handleIncoming(msg: WAMsg) {
     }
 
     default:
+      console.log("❌ [UNSUPPORTED MESSAGE TYPE]", msg.type);
       await sendText(user, "Unsupported message type. Please send text or use the buttons.");
       return;
   }
