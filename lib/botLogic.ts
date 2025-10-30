@@ -7,7 +7,7 @@ export const MENU = [
   { id: "paneer_tikka", name: "Paneer Tikka", price: 180 },
   { id: "butter_chicken", name: "Butter Chicken", price: 250 },
   { id: "veg_biryani", name: "Veg Biryani", price: 160 },
-  { id: "gulab_jamun", name: "Gulab Jamun", price: 90 },
+  // { id: "gulab_jamun", name: "Gulab Jamun", price: 90 },
 ];
 
 function menuSections() {
