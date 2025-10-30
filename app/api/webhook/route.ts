@@ -14,17 +14,32 @@ export async function GET(req: NextRequest) {
   return new NextResponse("Forbidden", { status: 403 });
 }
 
-// ✅ Webhook Message Receiver
+// ✅ Webhook Message Handler
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const entry = body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
-    if (!entry) return NextResponse.json({ received: true });
+    const entry = body?.entry?.[0];
+    const change = entry?.changes?.[0];
+    const value = change?.value;
 
-    await handleIncomingMessage(entry);
+    // ✅ only process if messages exist
+    const message = value?.messages?.[0];
+    if (!message) {
+      console.log("⚠️ Skipping non-message webhook (status/update)");
+      return NextResponse.json({ ok: true });
+    }
+
+    // ✅ ignore echo messages (sent by your own WhatsApp number)
+    if (message.from === value.metadata?.phone_number_id) {
+      console.log("⚠️ Ignored echo message from our own number.");
+      return NextResponse.json({ ok: true });
+    }
+
+    await handleIncomingMessage(message);
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("❌ Webhook error:", err);
-    return NextResponse.json({ success: false }, { status: 500 });
+    return NextResponse.json({ error: "webhook failed" }, { status: 500 });
   }
 }
+

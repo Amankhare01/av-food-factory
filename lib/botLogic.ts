@@ -5,7 +5,6 @@ const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID!;
 const ACCESS_TOKEN = process.env.META_ACCESS_TOKEN!;
 const ADMIN_PHONE = "917317275160";
 
-// ----- WhatsApp Send Function -----
 export async function sendWhatsAppMessage(msg: any) {
   try {
     const res = await fetch(`https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`, {
@@ -16,74 +15,55 @@ export async function sendWhatsAppMessage(msg: any) {
       },
       body: JSON.stringify(msg),
     });
-
-    const text = await res.text();
-    console.log("📤 WA API Response:", res.status, text);
+    console.log("📤 WA:", res.status, await res.text());
   } catch (err) {
     console.error("❌ sendWhatsAppMessage error:", err);
   }
 }
 
-// ----- Menu -----
 export const MENU = [
   { id: "paneer_tikka", name: "Paneer Tikka", price: 180 },
   { id: "butter_chicken", name: "Butter Chicken", price: 250 },
   { id: "gulab_jamun", name: "Gulab Jamun", price: 80 },
 ];
 
-// ----- In-Memory Sessions -----
 const sessions: Record<string, any> = {};
-const processedMessages = new Set<string>();
+const processed = new Set<string>();
 
-// ----- Main Handler -----
 export async function handleIncomingMessage(message: any) {
-  // 🛡 Ignore status/delivery updates
-  if (!message || !message.from || !message.id) {
-    console.log("⚠️ Ignored non-message webhook (status/update)");
-    return;
-  }
-
   const msgId = message.id;
   const from = message.from;
   const text = message.text?.body?.trim().toLowerCase();
-  const buttonId = message.interactive?.button_reply?.id;
-  const listId = message.interactive?.list_reply?.id;
-  const action = (buttonId || listId || text || "").trim().toLowerCase();
+  const btn = message.interactive?.button_reply?.id;
+  const list = message.interactive?.list_reply?.id;
+  const action = (btn || list || text || "").trim().toLowerCase();
 
-  // 🧩 Duplicate message protection
-  if (processedMessages.has(msgId)) {
-    console.log("⚠️ Duplicate webhook ignored:", msgId);
+  // ✅ ignore duplicates
+  if (processed.has(msgId)) {
+    console.log("⚠️ Duplicate ignored:", msgId);
     return;
   }
-  processedMessages.add(msgId);
-  setTimeout(() => processedMessages.delete(msgId), 10 * 60 * 1000); // auto-clear after 10 min
+  processed.add(msgId);
+  setTimeout(() => processed.delete(msgId), 600000);
 
-  // 🧠 Init session
+  // session
   if (!sessions[from]) sessions[from] = { step: "start", cart: [], _confirmed: false };
   const user = sessions[from];
+  console.log("📩", action);
 
-  console.log("📩 Incoming action:", action);
-
-  // 🧭 Use switch-based routing
   switch (true) {
-    // ----- Greetings -----
-    case ["hi", "hello", "menu", "start"].includes(action): {
+    case ["hi", "hello", "menu", "start"].includes(action):
       user.step = "menu";
       await sendWhatsAppMessage(buildMainMenu(from));
       break;
-    }
 
-    // ----- View Menu -----
-    case action === "view_menu": {
+    case action === "view_menu":
       user.step = "choose_item";
       await sendWhatsAppMessage(buildMenuList(from));
       break;
-    }
 
-    // ----- Select Item -----
     case action.startsWith("item_"): {
-      const itemId = action.replace("item_", "");
-      const item = MENU.find((i) => i.id === itemId);
+      const item = MENU.find(i => i.id === action.replace("item_", ""));
       if (!item) return await sendWhatsAppMessage(buildText(from, "❌ Item not found."));
       user.currentItem = item;
       user.step = "quantity";
@@ -91,125 +71,103 @@ export async function handleIncomingMessage(message: any) {
       break;
     }
 
-    // ----- Choose Quantity -----
     case action.startsWith("qty_"): {
       const qty = Number(action.replace("qty_", ""));
-      if (!user.currentItem) return await sendWhatsAppMessage(buildText(from, "Select an item first."));
+      if (!user.currentItem) return;
       user.cart.push({ ...user.currentItem, qty });
       user.currentItem = null;
-      user.step = "cart_actions";
-      await sendWhatsAppMessage(
-        buildText(from, `🛒 Added *${qty} × ${user.cart.at(-1).name}* to your cart.`)
-      );
+      user.step = "cart";
+      await sendWhatsAppMessage(buildText(from, `🛒 Added *${qty} × ${user.cart.at(-1).name}*.`));
       await sendWhatsAppMessage(buildCartOptions(from));
       break;
     }
 
-    // ----- Add More -----
-    case action === "add_more": {
+    case action === "add_more":
       user.step = "choose_item";
       await sendWhatsAppMessage(buildMenuList(from));
       break;
-    }
 
-    // ----- View Cart -----
-    case action === "view_cart": {
+    case action === "view_cart":
       if (!user.cart.length) {
-        await sendWhatsAppMessage(buildText(from, "🛒 Your cart is empty."));
+        await sendWhatsAppMessage(buildText(from, "🛒 Cart empty."));
         await sendWhatsAppMessage(buildCartOptions(from));
-        break;
+      } else {
+        await sendWhatsAppMessage(buildCartSummary(from, user.cart));
       }
-      await sendWhatsAppMessage(buildCartSummary(from, user.cart));
       break;
-    }
 
-    // ----- Remove Item -----
-    case action === "remove_item": {
+    case action === "remove_item":
       if (!user.cart.length)
-        return await sendWhatsAppMessage(buildText(from, "Your cart is empty."));
+        return await sendWhatsAppMessage(buildText(from, "Cart already empty."));
       user.step = "removing";
       await sendWhatsAppMessage(buildRemoveItemList(from, user.cart));
       break;
-    }
 
-    // ----- Delete Specific Item -----
     case action.startsWith("del_"): {
       const idx = Number(action.replace("del_", ""));
       if (isNaN(idx) || !user.cart[idx])
         return await sendWhatsAppMessage(buildText(from, "❌ Invalid selection."));
       const removed = user.cart.splice(idx, 1)[0];
       await sendWhatsAppMessage(buildText(from, `🗑️ Removed *${removed.name}*.`));
-      user.step = "cart_actions";
       await sendWhatsAppMessage(buildCartOptions(from));
       break;
     }
 
-    // ----- Proceed to Checkout -----
-    case action === "proceed_checkout": {
+    case action === "proceed_checkout":
       if (!user.cart.length)
-        return await sendWhatsAppMessage(buildText(from, "🛒 Your cart is empty."));
+        return await sendWhatsAppMessage(buildText(from, "🛒 Cart empty."));
       user.step = "delivery";
       await sendWhatsAppMessage(buildDeliveryTypeButtons(from));
       break;
-    }
 
-    // ----- Choose Delivery / Pickup -----
-    case ["delivery", "pickup"].includes(action): {
+    case ["delivery", "pickup"].includes(action):
       user.deliveryType = action;
       user.step = "contact";
-      await sendWhatsAppMessage(buildText(from, "📞 Please share your *10-digit contact number*"));
+      await sendWhatsAppMessage(buildText(from, "📞 Send your *10-digit contact number*."));
       break;
-    }
 
-    // ----- Enter Contact -----
-    case user.step === "contact" && /^\d{10}$/.test(text): {
+    case user.step === "contact" && /^\d{10}$/.test(text):
       user.contact = text;
       if (user.deliveryType === "delivery") {
         user.step = "address";
-        await sendWhatsAppMessage(
-          buildText(
-            from,
-            "🏠 Please type your *full delivery address* including area and pincode.\n\nExample:\n`123 MG Road, Lucknow 226010`"
-          )
-        );
+        await sendWhatsAppMessage(buildText(from, "🏠 Send full address incl. pincode."));
       } else {
         user.step = "confirm";
         await sendWhatsAppMessage(buildConfirmOrderButton(from));
       }
       break;
-    }
 
-    // ----- Save Address -----
     case user.step === "address" && text: {
       const pin = text.match(/\b\d{6}\b/);
       if (!pin)
-        return await sendWhatsAppMessage(
-          buildText(from, "⚠️ Please include a valid 6-digit *pincode* in your address.")
-        );
-      user.address = text.trim();
+        return await sendWhatsAppMessage(buildText(from, "⚠️ Include a valid 6-digit pincode."));
+      user.address = text;
       user.pincode = pin[0];
       user.step = "confirm";
-      await sendWhatsAppMessage(buildText(from, "✅ Address saved successfully!"));
+      await sendWhatsAppMessage(buildText(from, "✅ Address saved."));
       await sendWhatsAppMessage(buildConfirmOrderButton(from));
       break;
     }
 
-    // ----- Confirm Order -----
     case action === "confirm_order": {
       if (user._confirmed) {
-        console.log("⚠️ Duplicate confirm_order ignored.");
+        console.log("⚠️ duplicate confirm ignored");
+        return;
+      }
+
+      // guard: empty cart
+      if (!user.cart?.length) {
+        console.log("⚠️ empty cart confirm blocked");
         return;
       }
 
       user._confirmed = true;
-      setTimeout(() => (user._confirmed = false), 15 * 60 * 1000); // reset after 15 min
+      setTimeout(() => (user._confirmed = false), 900000);
 
-      const total = user.cart.reduce((sum: number, i: any) => sum + i.price * i.qty, 0);
-      const summary = user.cart
-        .map((i: any) => `${i.name} ×${i.qty} — ₹${i.price * i.qty}`)
-        .join("\n");
+      const total = user.cart.reduce((s: number, i: any) => s + i.price * i.qty, 0);
+      const summary = user.cart.map((i: any) => `${i.name} ×${i.qty} — ₹${i.price * i.qty}`).join("\n");
 
-      // Customer confirmation
+      // customer confirm
       await sendWhatsAppMessage(
         buildText(
           from,
@@ -221,38 +179,29 @@ export async function handleIncomingMessage(message: any) {
         )
       );
 
-      // Admin notification
-      const adminMsg = `📦 *New Order*\nFrom: ${from}\n📞 ${user.contact}\nType: ${user.deliveryType}\n\n${summary}\nTotal: ₹${total}\n\n${
-        user.deliveryType === "delivery" ? `🏠 ${user.address}` : "🏬 Pickup order"
+      // admin msg
+      const adminText = `📦 *New Order*\nFrom: ${from}\n📞 ${user.contact}\nType: ${user.deliveryType}\n\n${summary}\nTotal: ₹${total}\n\n${
+        user.deliveryType === "delivery" ? `🏠 ${user.address}` : "Pickup order"
       }`;
+      await sendWhatsAppMessage(buildText(ADMIN_PHONE, adminText));
 
-      await sendWhatsAppMessage(buildText(ADMIN_PHONE, adminMsg));
       await saveOrder(from, user);
-
-      await sendWhatsAppMessage(
-        buildText(from, "🧾 Your order has been saved successfully! Thank you 🙏")
-      );
-
+      await sendWhatsAppMessage(buildText(from, "🧾 Order saved successfully! 🙏"));
       user.cart = [];
       user.step = "done";
       break;
     }
 
-    // ----- Fallback -----
-    default: {
+    default:
       await sendWhatsAppMessage(buildMainMenu(from));
-    }
   }
 }
 
-// ------------------------------------------------------------------
-// 🧩 UI Builders
-// ------------------------------------------------------------------
-export function buildText(to: string, bodyText: string) {
-  return { messaging_product: "whatsapp", to, type: "text", text: { body: bodyText } };
+// ----- Builders -----
+function buildText(to: string, body: string) {
+  return { messaging_product: "whatsapp", to, type: "text", text: { body } };
 }
-
-export function buildMainMenu(to: string) {
+function buildMainMenu(to: string) {
   return {
     messaging_product: "whatsapp",
     to,
@@ -264,8 +213,7 @@ export function buildMainMenu(to: string) {
     },
   };
 }
-
-export function buildMenuList(to: string) {
+function buildMenuList(to: string) {
   return {
     messaging_product: "whatsapp",
     to,
@@ -279,26 +227,21 @@ export function buildMenuList(to: string) {
         sections: [
           {
             title: "Available Items",
-            rows: MENU.map((i) => ({
-              id: `item_${i.id}`,
-              title: i.name,
-              description: `₹${i.price}`,
-            })),
+            rows: MENU.map(i => ({ id: `item_${i.id}`, title: i.name, description: `₹${i.price}` })),
           },
         ],
       },
     },
   };
 }
-
-export function buildQuantityButtons(to: string, itemName: string) {
+function buildQuantityButtons(to: string, name: string) {
   return {
     messaging_product: "whatsapp",
     to,
     type: "interactive",
     interactive: {
       type: "button",
-      body: { text: `🍛 How many *${itemName}* would you like?` },
+      body: { text: `🍛 How many *${name}* would you like?` },
       action: {
         buttons: [
           { type: "reply", reply: { id: "qty_1", title: "1" } },
@@ -309,8 +252,7 @@ export function buildQuantityButtons(to: string, itemName: string) {
     },
   };
 }
-
-export function buildCartOptions(to: string) {
+function buildCartOptions(to: string) {
   return {
     messaging_product: "whatsapp",
     to,
@@ -328,8 +270,7 @@ export function buildCartOptions(to: string) {
     },
   };
 }
-
-export function buildCartSummary(to: string, cart: any[]) {
+function buildCartSummary(to: string, cart: any[]) {
   const summary = cart.map((i, idx) => `${idx + 1}. ${i.name} ×${i.qty} — ₹${i.price * i.qty}`).join("\n");
   const total = cart.reduce((s: number, i: any) => s + i.price * i.qty, 0);
   return {
@@ -338,9 +279,7 @@ export function buildCartSummary(to: string, cart: any[]) {
     type: "interactive",
     interactive: {
       type: "button",
-      body: {
-        text: `🧾 *Your Cart*\n\n${summary}\n\nSubtotal: ₹${total}\n\nWhat would you like to do next?`,
-      },
+      body: { text: `🧾 *Your Cart*\n\n${summary}\n\nSubtotal: ₹${total}` },
       action: {
         buttons: [
           { type: "reply", reply: { id: "add_more", title: "➕ Add More" } },
@@ -351,8 +290,7 @@ export function buildCartSummary(to: string, cart: any[]) {
     },
   };
 }
-
-export function buildRemoveItemList(to: string, cart: any[]) {
+function buildRemoveItemList(to: string, cart: any[]) {
   return {
     messaging_product: "whatsapp",
     to,
@@ -366,10 +304,10 @@ export function buildRemoveItemList(to: string, cart: any[]) {
         sections: [
           {
             title: "Cart Items",
-            rows: cart.map((item, idx) => ({
+            rows: cart.map((i, idx) => ({
               id: `del_${idx}`,
-              title: item.name,
-              description: `Qty: ${item.qty} — ₹${item.price * item.qty}`,
+              title: i.name,
+              description: `Qty: ${i.qty} — ₹${i.price * i.qty}`,
             })),
           },
         ],
@@ -377,8 +315,7 @@ export function buildRemoveItemList(to: string, cart: any[]) {
     },
   };
 }
-
-export function buildDeliveryTypeButtons(to: string) {
+function buildDeliveryTypeButtons(to: string) {
   return {
     messaging_product: "whatsapp",
     to,
@@ -395,8 +332,7 @@ export function buildDeliveryTypeButtons(to: string) {
     },
   };
 }
-
-export function buildConfirmOrderButton(to: string) {
+function buildConfirmOrderButton(to: string) {
   return {
     messaging_product: "whatsapp",
     to,
@@ -404,22 +340,16 @@ export function buildConfirmOrderButton(to: string) {
     interactive: {
       type: "button",
       body: { text: "Ready to confirm your order?" },
-      action: {
-        buttons: [{ type: "reply", reply: { id: "confirm_order", title: "✅ Confirm Order" } }],
-      },
+      action: { buttons: [{ type: "reply", reply: { id: "confirm_order", title: "✅ Confirm Order" } }] },
     },
   };
 }
 
-// ----- Save Order -----
 async function saveOrder(from: string, user: any) {
   try {
     await connectDB();
-    if (!user.cart?.length) {
-      console.log("⚠️ No items in cart, skipping save.");
-      return;
-    }
-    const subtotal = user.cart.reduce((s: number, c: any) => s + c.price * c.qty, 0);
+    if (!user.cart?.length) return;
+    const subtotal = user.cart.reduce((s: number, i: any) => s + i.price * i.qty, 0);
     const order = await Order.create({
       whatsappFrom: from,
       contact: user.contact,
@@ -431,8 +361,7 @@ async function saveOrder(from: string, user: any) {
       createdAt: new Date(),
     });
     console.log("✅ Order saved:", order._id);
-    return order;
   } catch (err) {
-    console.error("❌ Error saving order:", err);
+    console.error("❌ DB save error:", err);
   }
 }
