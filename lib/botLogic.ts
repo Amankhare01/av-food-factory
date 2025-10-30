@@ -1,348 +1,257 @@
-import connectDB from "./mongodb";
-import { Order } from "../models/Order";
+import { Session } from "@/models/Session";
+import { Order } from "@/models/Order";
+import { sendText, sendButtons, sendList, notifyAdmin } from "@/lib/meta";
+import type { WAMsg, SessionState, CartItem } from "@/lib/types";
 
-const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID!;
-const ACCESS_TOKEN = process.env.META_ACCESS_TOKEN!;
-const ADMIN_PHONE = "917317275160";
-
-export async function sendWhatsAppMessage(msg: any) {
-  try {
-    const res = await fetch(`https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${ACCESS_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(msg),
-    });
-    console.log("📤 WA:", res.status, await res.text());
-  } catch (err) {
-    console.error("❌ sendWhatsAppMessage error:", err);
-  }
-}
-
+// ---- Menu ----
 export const MENU = [
   { id: "paneer_tikka", name: "Paneer Tikka", price: 180 },
   { id: "butter_chicken", name: "Butter Chicken", price: 250 },
-  { id: "gulab_jamun", name: "Gulab Jamun", price: 80 },
+  { id: "veg_biryani", name: "Veg Biryani", price: 160 },
+  { id: "gulab_jamun", name: "Gulab Jamun", price: 90 },
 ];
 
-const sessions: Record<string, any> = {};
-const processed = new Set<string>();
+function menuSections() {
+  return [
+    {
+      title: "Popular",
+      rows: MENU.map((i) => ({
+        id: `add_${i.id}`,
+        title: `${i.name} — ₹${i.price}`,
+        description: "Tap to add",
+      })),
+    },
+  ];
+}
 
-export async function handleIncomingMessage(message: any) {
-  const msgId = message.id;
-  const from = message.from;
-  const text = message.text?.body?.trim();
-  const lowerText = text?.toLowerCase();
-  const btn = message.interactive?.button_reply?.id;
-  const list = message.interactive?.list_reply?.id;
-  const action = (btn || list || lowerText || "").trim().toLowerCase();
+function calcSubtotal(cart: CartItem[]) {
+  return cart.reduce((s, i) => s + i.price * i.qty, 0);
+}
 
-  // ✅ prevent duplicate triggers
-  if (processed.has(msgId)) {
-    console.log("⚠️ Duplicate ignored:", msgId);
+function renderCart(cart: CartItem[]) {
+  if (!cart.length) return "🛒 Cart is empty.";
+  return (
+    cart.map((i) => `• ${i.name} x ${i.qty} — ₹${i.price * i.qty}`).join("\n") +
+    `\n\nSubtotal: ₹${calcSubtotal(cart)}`
+  );
+}
+
+function findMenuItem(id: string) {
+  return MENU.find((m) => m.id === id);
+}
+
+// ---- FSM ----
+export async function handleIncoming(msg: WAMsg) {
+  const user = msg.from;
+
+  // upsert session
+  let session = await Session.findOne({ user });
+  if (!session) session = await Session.create({ user, state: "IDLE", cart: [] });
+
+  const text = msg.text?.body?.trim().toLowerCase() || "";
+  await Session.updateOne({ _id: session._id }, { lastMessageAt: new Date() });
+
+  // Global intents
+  if (["menu", "order", "start", "hi", "hello", "hey"].includes(text)) {
+    await Session.updateOne({ _id: session._id }, { state: "BROWSING_MENU", tempItemId: null });
+    await sendList(user, "AV Food Factory", "Browse & add items to cart:", menuSections());
     return;
   }
-  processed.add(msgId);
-  setTimeout(() => processed.delete(msgId), 600000);
-
-  if (!sessions[from]) sessions[from] = { step: "start", cart: [], _confirmed: false };
-  const user = sessions[from];
-  console.log("📩 Incoming:", action, "| step:", user.step);
-
-  // ✅ handle text-based steps first (before switch)
-  if (user.step === "contact" && /^\d{10}$/.test(lowerText)) {
-    user.contact = lowerText;
-    if (user.deliveryType === "delivery") {
-      user.step = "address";
-      await sendWhatsAppMessage(
-        buildText(from, "🏠 Please type your *full delivery address* including area and pincode.")
-      );
-    } else {
-      user.step = "confirm";
-      await sendWhatsAppMessage(buildConfirmOrderButton(from));
-    }
+  if (["cart", "view cart"].includes(text)) {
+    await sendButtons(user, renderCart(session.cart), [
+      { id: "btn_checkout", title: "Checkout" },
+      { id: "btn_browse", title: "Add more" },
+      { id: "btn_clear", title: "Clear cart" },
+    ]);
+    return;
+  }
+  if (["clear", "clear cart"].includes(text)) {
+    await Session.updateOne({ _id: session._id }, { cart: [] });
+    await sendText(user, "🧹 Cart cleared. Type *menu* to add items.");
     return;
   }
 
-  if (user.step === "address" && text) {
-    const pin = text.match(/\b\d{6}\b/);
-    if (!pin) {
-      await sendWhatsAppMessage(buildText(from, "⚠️ Please include a valid 6-digit *pincode* in your address."));
+  switch (msg.type) {
+    case "interactive": {
+      const choice =
+        msg.interactive?.button_reply?.id || msg.interactive?.list_reply?.id || "";
+
+      // Button actions
+      switch (choice) {
+        case "btn_browse":
+          await Session.updateOne({ _id: session._id }, { state: "BROWSING_MENU" });
+          await sendList(user, "AV Food Factory", "Browse & add items to cart:", menuSections());
+          return;
+
+        case "btn_clear":
+          await Session.updateOne({ _id: session._id }, { cart: [] });
+          await sendText(user, "🧹 Cart cleared. Type *menu* to add items.");
+          return;
+
+        case "btn_checkout":
+          if (!session.cart.length) {
+            await sendText(user, "Your cart is empty. Type *menu* to add items.");
+            return;
+          }
+          await Session.updateOne({ _id: session._id }, { state: "ASK_ADDRESS" });
+          await sendText(user, "📍 Please share your *delivery address* in one message.");
+          return;
+      }
+
+      // List actions: add_*
+      if (choice.startsWith("add_")) {
+        const itemId = choice.replace("add_", "");
+        const item = findMenuItem(itemId);
+        if (!item) {
+          await sendText(user, "Item not found. Type *menu* to try again.");
+          return;
+        }
+        await Session.updateOne(
+          { _id: session._id },
+          { state: "ADDING_ITEM_QTY", tempItemId: item.id }
+        );
+        await sendButtons(user, `How many *${item.name}*?`, [
+          { id: "qty_1", title: "1" },
+          { id: "qty_2", title: "2" },
+          { id: "qty_3", title: "3" },
+        ]);
+        return;
+      }
+
+      // Quantity buttons
+      if (choice.startsWith("qty_")) {
+        if (session.state !== "ADDING_ITEM_QTY" || !session.tempItemId) {
+          await sendText(user, "No item selected. Type *menu* to add items.");
+          return;
+        }
+        const qty = Number(choice.replace("qty_", ""));
+        const item = findMenuItem(session.tempItemId);
+        if (!item || !Number.isFinite(qty) || qty <= 0) {
+          await sendText(user, "Invalid quantity.");
+          return;
+        }
+        const existing = session.cart.find((c: any) => c.id === item.id);
+        if (existing) existing.qty += qty;
+        else session.cart.push({ id: item.id, name: item.name, price: item.price, qty });
+        await session.save();
+
+        await sendButtons(
+          user,
+          `${renderCart(session.cart)}\n\nAdd more or checkout?`,
+          [
+            { id: "btn_browse", title: "Add more" },
+            { id: "btn_checkout", title: "Checkout" },
+            { id: "btn_clear", title: "Clear cart" },
+          ]
+        );
+        await Session.updateOne(
+          { _id: session._id },
+          { state: "BROWSING_MENU", tempItemId: null }
+        );
+        return;
+      }
+
+      // Confirm buttons
+      if (choice === "confirm_yes") {
+        if (session.state !== "CONFIRMING_ORDER" || !session.deliveryAddress) {
+          await sendText(user, "Nothing to confirm yet.");
+          return;
+        }
+        const subtotal = calcSubtotal(session.cart);
+        const order = await Order.create({
+          user,
+          items: session.cart,
+          subtotal,
+          deliveryAddress: session.deliveryAddress,
+        });
+        await sendText(
+          user,
+          `✅ Order placed!\nOrder ID: ${order._id}\nTotal: ₹${subtotal}\nETA: ~35–45 min.\n\nThank you!`
+        );
+        await notifyAdmin(
+          `📦 New Order\nUser: ${user}\nTotal: ₹${subtotal}\nAddress: ${session.deliveryAddress}\nItems:\n${session.cart
+            .map((i: any) => `• ${i.name} x ${i.qty} = ₹${i.qty * i.price}`)
+            .join("\n")}`
+        );
+        await Session.updateOne(
+          { _id: session._id },
+          { state: "DONE", cart: [], deliveryAddress: null, tempItemId: null }
+        );
+        return;
+      }
+      if (choice === "confirm_no") {
+        await Session.updateOne({ _id: session._id }, { state: "BROWSING_MENU" });
+        await sendList(user, "AV Food Factory", "No problem. Continue browsing:", menuSections());
+        return;
+      }
+
+      await sendText(user, "I didn't get that. Type *menu* to browse.");
       return;
     }
-    user.address = text.trim();
-    user.pincode = pin[0];
-    user.step = "confirm";
-    await sendWhatsAppMessage(buildText(from, "✅ Address saved successfully!"));
-    await sendWhatsAppMessage(buildConfirmOrderButton(from));
-    return;
-  }
 
-  // ✅ main switch for button or list actions
-  switch (action) {
-    case "hi":
-    case "hello":
-    case "menu":
-    case "start":
-      user.step = "menu";
-      await sendWhatsAppMessage(buildMainMenu(from));
-      break;
-
-    case "view_menu":
-      user.step = "choose_item";
-      await sendWhatsAppMessage(buildMenuList(from));
-      break;
-
-    case "add_more":
-      user.step = "choose_item";
-      await sendWhatsAppMessage(buildMenuList(from));
-      break;
-
-    case "view_cart":
-      if (!user.cart.length) {
-        await sendWhatsAppMessage(buildText(from, "🛒 Cart is empty."));
-        await sendWhatsAppMessage(buildCartOptions(from));
-      } else {
-        await sendWhatsAppMessage(buildCartSummary(from, user.cart));
-      }
-      break;
-
-    case "remove_item":
-      if (!user.cart.length)
-        return await sendWhatsAppMessage(buildText(from, "Your cart is already empty."));
-      user.step = "removing";
-      await sendWhatsAppMessage(buildRemoveItemList(from, user.cart));
-      break;
-
-    case "proceed_checkout":
-      if (!user.cart.length)
-        return await sendWhatsAppMessage(buildText(from, "🛒 Cart is empty."));
-      user.step = "delivery";
-      await sendWhatsAppMessage(buildDeliveryTypeButtons(from));
-      break;
-
-    case "delivery":
-    case "pickup":
-      user.deliveryType = action;
-      user.step = "contact";
-      await sendWhatsAppMessage(buildText(from, "📞 Please share your *10-digit contact number*"));
-      break;
-
-    case "confirm_order":
-      if (user._confirmed) {
-        console.log("⚠️ duplicate confirm ignored");
+    case "location": {
+      if (session.state === "ASK_ADDRESS") {
+        const { latitude, longitude, address } = msg.location!;
+        const addr = address
+          ? `${address}\n(${latitude}, ${longitude})`
+          : `Pin: ${latitude}, ${longitude}`;
+        await Session.updateOne(
+          { _id: session._id },
+          { deliveryAddress: addr, state: "CONFIRMING_ORDER" }
+        );
+        await sendButtons(
+          user,
+          `📍 Address:\n${addr}\n\n${renderCart(session.cart)}\n\nConfirm order?`,
+          [
+            { id: "confirm_yes", title: "Confirm" },
+            { id: "confirm_no", title: "Edit" },
+          ]
+        );
         return;
       }
-      if (!user.cart?.length) {
-        console.log("⚠️ empty cart confirm blocked");
-        return;
+      await sendText(user, "Thanks for the location. Type *menu* to order.");
+      return;
+    }
+
+    case "text": {
+      switch (session.state as SessionState) {
+        case "ASK_ADDRESS": {
+          const addr = msg.text?.body?.trim();
+          if (!addr) {
+            await sendText(user, "Please type your address in one message.");
+            return;
+          }
+          await Session.updateOne(
+            { _id: session._id },
+            { deliveryAddress: addr, state: "CONFIRMING_ORDER" }
+          );
+          await sendButtons(
+            user,
+            `📍 Address:\n${addr}\n\n${renderCart(session.cart)}\n\nConfirm order?`,
+            [
+              { id: "confirm_yes", title: "Confirm" },
+              { id: "confirm_no", title: "Edit" },
+            ]
+          );
+          return;
+        }
+        default:
+          if (text.includes("menu")) {
+            await Session.updateOne({ _id: session._id }, { state: "BROWSING_MENU" });
+            await sendList(user, "AV Food Factory", "Browse & add items to cart:", menuSections());
+            return;
+          }
+          await sendButtons(user, "What would you like to do?", [
+            { id: "btn_browse", title: "View Menu" },
+            { id: "btn_checkout", title: "Checkout" },
+            { id: "btn_clear", title: "Clear Cart" },
+          ]);
+          return;
       }
-      user._confirmed = true;
-      setTimeout(() => (user._confirmed = false), 900000);
-
-      const total = user.cart.reduce((s: number, i: any) => s + i.price * i.qty, 0);
-      const summary = user.cart.map((i: any) => `${i.name} ×${i.qty} — ₹${i.price * i.qty}`).join("\n");
-
-      await sendWhatsAppMessage(
-        buildText(
-          from,
-          `✅ *Order Confirmed!*\n\n${summary}\nTotal: ₹${total}\n\n${
-            user.deliveryType === "delivery"
-              ? `📍 *Address:*\n${user.address}`
-              : "🏬 *Pickup order confirmed!*"
-          }\n\nThank you for ordering with AV Food Factory! 🍴`
-        )
-      );
-
-      const adminText = `📦 *New Order*\nFrom: ${from}\n📞 ${user.contact}\nType: ${user.deliveryType}\n\n${summary}\nTotal: ₹${total}\n\n${
-        user.deliveryType === "delivery" ? `🏠 ${user.address}` : "Pickup order"
-      }`;
-      await sendWhatsAppMessage(buildText(ADMIN_PHONE, adminText));
-
-      await saveOrder(from, user);
-      await sendWhatsAppMessage(buildText(from, "🧾 Order saved successfully! 🙏"));
-      user.cart = [];
-      user.step = "done";
-      break;
+    }
 
     default:
-      // only show fallback if no other step in progress
-      if (user.step === "done" || user.step === "start") {
-        await sendWhatsAppMessage(buildMainMenu(from));
-      } else {
-        console.log("ℹ️ ignored unrelated text during step:", user.step);
-      }
-  }
-}
-
-
-// ----- Builders -----
-function buildText(to: string, body: string) {
-  return { messaging_product: "whatsapp", to, type: "text", text: { body } };
-}
-function buildMainMenu(to: string) {
-  return {
-    messaging_product: "whatsapp",
-    to,
-    type: "interactive",
-    interactive: {
-      type: "button",
-      body: { text: "👋 Welcome to AV Food Factory! What would you like to do?" },
-      action: { buttons: [{ type: "reply", reply: { id: "view_menu", title: "🍽️ View Menu" } }] },
-    },
-  };
-}
-function buildMenuList(to: string) {
-  return {
-    messaging_product: "whatsapp",
-    to,
-    type: "interactive",
-    interactive: {
-      type: "list",
-      header: { type: "text", text: "🍴 AV Food Factory — Menu" },
-      body: { text: "Select your favorite dish:" },
-      action: {
-        button: "View Items",
-        sections: [
-          {
-            title: "Available Items",
-            rows: MENU.map(i => ({ id: `item_${i.id}`, title: i.name, description: `₹${i.price}` })),
-          },
-        ],
-      },
-    },
-  };
-}
-function buildQuantityButtons(to: string, name: string) {
-  return {
-    messaging_product: "whatsapp",
-    to,
-    type: "interactive",
-    interactive: {
-      type: "button",
-      body: { text: `🍛 How many *${name}* would you like?` },
-      action: {
-        buttons: [
-          { type: "reply", reply: { id: "qty_1", title: "1" } },
-          { type: "reply", reply: { id: "qty_2", title: "2" } },
-          { type: "reply", reply: { id: "qty_3", title: "3" } },
-        ],
-      },
-    },
-  };
-}
-function buildCartOptions(to: string) {
-  return {
-    messaging_product: "whatsapp",
-    to,
-    type: "interactive",
-    interactive: {
-      type: "button",
-      body: { text: "Would you like to add more items, view cart, or checkout?" },
-      action: {
-        buttons: [
-          { type: "reply", reply: { id: "add_more", title: "➕ Add More" } },
-          { type: "reply", reply: { id: "view_cart", title: "🛒 View Cart" } },
-          { type: "reply", reply: { id: "proceed_checkout", title: "✅ Checkout" } },
-        ],
-      },
-    },
-  };
-}
-function buildCartSummary(to: string, cart: any[]) {
-  const summary = cart.map((i, idx) => `${idx + 1}. ${i.name} ×${i.qty} — ₹${i.price * i.qty}`).join("\n");
-  const total = cart.reduce((s: number, i: any) => s + i.price * i.qty, 0);
-  return {
-    messaging_product: "whatsapp",
-    to,
-    type: "interactive",
-    interactive: {
-      type: "button",
-      body: { text: `🧾 *Your Cart*\n\n${summary}\n\nSubtotal: ₹${total}` },
-      action: {
-        buttons: [
-          { type: "reply", reply: { id: "add_more", title: "➕ Add More" } },
-          { type: "reply", reply: { id: "remove_item", title: "🗑️ Remove Item" } },
-          { type: "reply", reply: { id: "proceed_checkout", title: "✅ Checkout" } },
-        ],
-      },
-    },
-  };
-}
-function buildRemoveItemList(to: string, cart: any[]) {
-  return {
-    messaging_product: "whatsapp",
-    to,
-    type: "interactive",
-    interactive: {
-      type: "list",
-      header: { type: "text", text: "🗑️ Remove from Cart" },
-      body: { text: "Select an item to remove:" },
-      action: {
-        button: "Select Item",
-        sections: [
-          {
-            title: "Cart Items",
-            rows: cart.map((i, idx) => ({
-              id: `del_${idx}`,
-              title: i.name,
-              description: `Qty: ${i.qty} — ₹${i.price * i.qty}`,
-            })),
-          },
-        ],
-      },
-    },
-  };
-}
-function buildDeliveryTypeButtons(to: string) {
-  return {
-    messaging_product: "whatsapp",
-    to,
-    type: "interactive",
-    interactive: {
-      type: "button",
-      body: { text: "Choose delivery type:" },
-      action: {
-        buttons: [
-          { type: "reply", reply: { id: "delivery", title: "🚚 Delivery" } },
-          { type: "reply", reply: { id: "pickup", title: "🏃 Pickup" } },
-        ],
-      },
-    },
-  };
-}
-function buildConfirmOrderButton(to: string) {
-  return {
-    messaging_product: "whatsapp",
-    to,
-    type: "interactive",
-    interactive: {
-      type: "button",
-      body: { text: "Ready to confirm your order?" },
-      action: { buttons: [{ type: "reply", reply: { id: "confirm_order", title: "✅ Confirm Order" } }] },
-    },
-  };
-}
-
-async function saveOrder(from: string, user: any) {
-  try {
-    await connectDB();
-    if (!user.cart?.length) return;
-    const subtotal = user.cart.reduce((s: number, i: any) => s + i.price * i.qty, 0);
-    const order = await Order.create({
-      whatsappFrom: from,
-      contact: user.contact,
-      address: user.address || null,
-      pincode: user.pincode || null,
-      deliveryType: user.deliveryType,
-      items: user.cart,
-      subtotal,
-      createdAt: new Date(),
-    });
-    console.log("✅ Order saved:", order._id);
-  } catch (err) {
-    console.error("❌ DB save error:", err);
+      await sendText(user, "Unsupported message type. Please send text or use the buttons.");
+      return;
   }
 }
