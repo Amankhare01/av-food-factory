@@ -5,7 +5,7 @@ export default function CTA() {
   const [loading, setLoading] = useState(false);
   const [ok, setOk] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: '', phone: '', guests: '' });
+  const [form, setForm] = useState({ name: '', phone: '', guests: '', company: '' }); // company = honeypot
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -21,7 +21,7 @@ export default function CTA() {
       const data = await res.json();
       if (data.ok) {
         setOk(true);
-        setForm({ name: '', phone: '', guests: '' });
+        setForm({ name: '', phone: '', guests: '', company: '' });
       } else {
         setErr(data.error || 'Something went wrong');
       }
@@ -65,6 +65,16 @@ export default function CTA() {
               className="h-12 rounded-xl px-4 text-black"
               value={form.guests}
               onChange={(e) => setForm({ ...form, guests: e.target.value })}
+            />
+            {/* Honeypot (hidden) */}
+            <input
+              type="text"
+              aria-hidden="true"
+              tabIndex={-1}
+              autoComplete="off"
+              className="hidden"
+              value={form.company}
+              onChange={(e) => setForm({ ...form, company: e.target.value })}
             />
             <button
               disabled={loading}

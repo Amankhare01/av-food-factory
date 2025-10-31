@@ -47,3 +47,31 @@ export async function notifyWhatsApp(lead: Lead) {
   await client.messages.create({ from, to, body });
   return { ok: true };
 }
+
+export async function autoReplyLead(lead: Lead) {
+  const sid = process.env.TWILIO_SID;
+  const token = process.env.TWILIO_AUTH_TOKEN;
+  if (!sid || !token) return { ok: false, skipped: true };
+  const client = twilio(sid, token);
+  const rawPhone = lead.phone.trim();
+  const digits = rawPhone.replace(/\D/g, '');
+  const phoneE164 = rawPhone.startsWith('+') ? '+' + digits : (digits.startsWith('91') ? '+' + digits : '+91' + digits);
+  const message = `Hi ${lead.name}, thanks for contacting AV Food Factory! We received your request` +
+    `${lead.guests ? ` for ~${lead.guests} guests` : ''}. Our team will reach out shortly. — AV Food Factory`;
+
+  const waFrom = process.env.TWILIO_WHATSAPP_FROM;
+  if (waFrom) {
+    try {
+      await client.messages.create({ from: waFrom, to: 'whatsapp:' + phoneE164.replace(/^\+/, '+'), body: message });
+      return { ok: true };
+    } catch {}
+  }
+  const smsFrom = process.env.TWILIO_SMS_FROM;
+  if (smsFrom) {
+    try {
+      await client.messages.create({ from: smsFrom, to: phoneE164, body: message });
+      return { ok: true };
+    } catch {}
+  }
+  return { ok: false, skipped: true };
+}
