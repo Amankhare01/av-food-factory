@@ -6,7 +6,7 @@ export async function POST(request: Request) {
   if (!validateCreds(String(user||''), String(pass||''))) {
     return NextResponse.json({ ok: false, error: 'Invalid credentials' }, { status: 401 });
   }
-  const token = signToken({ sub: 'admin', exp: Date.now() + 1000*60*60*8 }); // 8h
+  const token = await signToken({ sub: 'admin', exp: Date.now() + 1000*60*60*8 }); // 8h
   const res = NextResponse.json({ ok: true });
   res.cookies.set('admintoken', token, { httpOnly: true, sameSite: 'lax', secure: true, path: '/' });
   return res;

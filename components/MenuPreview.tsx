@@ -80,10 +80,6 @@ export default function ServicesPreview() {
       {/* Animated cards */}
       <motion.div
         className="mt-8 grid md:grid-cols-3 gap-6"
-        variants={container}
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true, amount: 0.15 }}
       >
         {services.map((service) => (
           <motion.figure

@@ -36,11 +36,6 @@ export default function Page() {
       </motion.section>
 
       <motion.section
-        initial="hidden"
-        whileInView="visible"
-        variants={fadeUp}
-        transition={{ duration: 0.8, delay: 0.15 }}
-        viewport={{ once: true, amount: 0.2 }}
       >
         <MenuPreview />
       </motion.section>

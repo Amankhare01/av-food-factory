@@ -45,7 +45,7 @@ export default function AdminTable() {
     <div className="mx-auto max-w-7xl px-4 py-6">
       <div className="flex flex-wrap gap-2 items-center">
         <input className="h-11 rounded border px-3" placeholder="Search name/phone/source..." value={q} onChange={e=>setQ(e.target.value)} />
-        <select className="h-11 rounded border px-3" value={status} onChange={e=>setStatus(e.target.value)}>
+        <select title='Details' className="h-11 rounded border px-3" value={status} onChange={e=>setStatus(e.target.value)}>
           <option value="">All</option>
           <option value="new">New</option>
           <option value="contacted">Contacted</option>
@@ -78,6 +78,7 @@ export default function AdminTable() {
                 <td className="p-3">{l.guests || '-'}</td>
                 <td className="p-3">
                   <select
+                  title='Details'
                     value={l.status || 'new'}
                     onChange={e => update(l.id, { status: e.target.value })}
                     className="rounded border px-2 py-1"
