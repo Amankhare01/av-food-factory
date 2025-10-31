@@ -21,77 +21,97 @@ const buildMenuList = () => [
   },
 ];
 
+// 🛒 In-memory state
 let userCarts: Record<string, CartItem[]> = {};
 let userStates: Record<string, string> = {};
 let userAddress: Record<string, string> = {};
 
-/** Pure function for logging + responding */
+/**
+ * Core Bot Logic
+ */
 export async function handleIncoming(msg: WAMsg) {
   console.log("📩 [NEW MESSAGE]", msg);
 
   const user = msg.from;
   const text = msg.text?.body?.trim().toLowerCase() || "";
 
+  // Ensure user context
   if (!userCarts[user]) userCarts[user] = [];
   if (!userStates[user]) userStates[user] = "IDLE";
 
   const state = userStates[user];
   console.log(`👤 User: ${user} | State: ${state} | MsgType: ${msg.type} | Text: "${text}"`);
 
-  /** Helper to send messages */
-  const sendText = async (body: string) =>
-    sendWhatsAppMessage({
+  /** --- Messaging helpers --- **/
+  const sendText = async (body: string) => {
+    console.log("💬 [SEND TEXT]", body);
+    await sendWhatsAppMessage({
       messaging_product: "whatsapp",
       to: user,
       type: "text",
       text: { body },
     });
+  };
 
-  const sendButtons = async (body: string, buttons: { id: string; title: string }[]) =>
-    sendWhatsAppMessage({
+  const sendButtons = async (body: string, buttons: { id: string; title: string }[]) => {
+    const safeButtons = buttons.map((b) => ({
+      type: "reply",
+      reply: { id: b.id, title: b.title || b.id || "Select" },
+    }));
+    console.log("🧩 [SEND BUTTONS]", safeButtons);
+
+    await sendWhatsAppMessage({
       messaging_product: "whatsapp",
       to: user,
       type: "interactive",
       interactive: {
         type: "button",
         body: { text: body },
-        action: { buttons: buttons.map((b) => ({ type: "reply", reply: b })) },
+        action: { buttons: safeButtons },
       },
     });
+  };
 
-  const sendList = async (header: string, body: string) =>
-    sendWhatsAppMessage({
+  const sendList = async (header: string, body: string) => {
+    console.log("🧾 [SEND LIST]");
+    await sendWhatsAppMessage({
       messaging_product: "whatsapp",
       to: user,
       type: "interactive",
       interactive: {
         type: "list",
         header: { type: "text", text: header },
-        body: { text: body },
+        body: { text },
         action: { sections: buildMenuList() },
       },
     });
+  };
 
-  // 🧠 State machine logic
+  /** --- Conversation Flow --- **/
+
+  // 1️⃣ Greetings
   if (["hi", "hello", "start"].includes(text)) {
     userStates[user] = "BROWSING_MENU";
-    await sendText("👋 Welcome to *AV Food Factory!* 🍱\nType *menu* to browse delicious dishes.");
+    await sendText("👋 Welcome to *AV Food Factory!* 🍱\nType *menu* to browse our delicious dishes.");
     return;
   }
 
+  // 2️⃣ Show Menu
   if (text === "menu") {
     userStates[user] = "BROWSING_MENU";
     await sendList("🍽 AV Food Factory", "Select an item to add to your cart:");
     return;
   }
 
+  // 3️⃣ List reply → Add item
   if (msg.interactive?.list_reply?.id?.startsWith("add_")) {
     const itemId = msg.interactive.list_reply.id.replace("add_", "");
     const item = MENU.find((i) => i.id === itemId);
     if (!item) return sendText("❌ Item not found.");
+
     userStates[user] = "ADDING_QTY";
-    userAddress[user] = "";
     console.log("➕ [ITEM SELECTED]", item);
+
     await sendButtons(`How many *${item.name}* would you like to order?`, [
       { id: `qty_${item.id}_1`, title: "1" },
       { id: `qty_${item.id}_2`, title: "2" },
@@ -100,10 +120,10 @@ export async function handleIncoming(msg: WAMsg) {
     return;
   }
 
+  // 4️⃣ Quantity selected
   if (msg.interactive?.button_reply?.id?.startsWith("qty_")) {
-    const parts = msg.interactive.button_reply.id.split("_");
-    const itemId = parts[1];
-    const qty = Number(parts[2]);
+    const [_, itemId, qtyStr] = msg.interactive.button_reply.id.split("_");
+    const qty = Number(qtyStr);
     const item = MENU.find((i) => i.id === itemId);
     if (!item) return sendText("⚠️ Item not found.");
 
@@ -115,52 +135,51 @@ export async function handleIncoming(msg: WAMsg) {
     console.log("🛒 [CART UPDATED]", cart);
     userStates[user] = "BROWSING_MENU";
 
-    await sendButtons(
-      `✅ Added *${item.name} × ${qty}* to cart.\n\nYour cart:\n${cart.map(
-        (c) => `• ${c.name} × ${c.qty} = ₹${c.qty * c.price}`
-      ).join("\n")}\n\nSubtotal: ₹${cart.reduce((s, c) => s + c.qty * c.price, 0)}`,
-      [
-        { id: "checkout", title: "Checkout" },
-        { id: "menu", title: "Add More" },
-        { id: "clear", title: "Clear Cart" },
-      ]
-    );
+    const summary = cart.map((c) => `• ${c.name} × ${c.qty} = ₹${c.price * c.qty}`).join("\n");
+    const total = cart.reduce((s, c) => s + c.qty * c.price, 0);
+
+    await sendButtons(`✅ Added *${item.name} × ${qty}*.\n\nYour cart:\n${summary}\n\nSubtotal: ₹${total}`, [
+      { id: "checkout", title: "Checkout" },
+      { id: "menu", title: "Add More" },
+      { id: "clear", title: "Clear Cart" },
+    ]);
     return;
   }
 
-  if (text === "clear") {
+  // 5️⃣ Clear Cart
+  if (text === "clear" || msg.interactive?.button_reply?.id === "clear") {
     userCarts[user] = [];
-    await sendText("🧹 Cart cleared. Type *menu* to start fresh!");
+    await sendText("🧹 Cart cleared. Type *menu* to start again!");
     return;
   }
 
+  // 6️⃣ Checkout
   if (text === "checkout" || msg.interactive?.button_reply?.id === "checkout") {
-    if (!userCarts[user].length) return sendText("🛒 Cart empty! Type *menu* to order.");
+    if (!userCarts[user].length) return sendText("🛒 Your cart is empty. Type *menu* to start ordering.");
     userStates[user] = "ASK_ADDRESS";
     await sendText("📍 Please type your *delivery address* now.");
     return;
   }
 
+  // 7️⃣ Address entered
   if (state === "ASK_ADDRESS" && msg.type === "text") {
     const address = msg.text?.body?.trim();
-    userAddress[user] = address || "";
+    if (!address) return sendText("❌ Please enter a valid address.");
+    userAddress[user] = address;
     userStates[user] = "CONFIRM";
-    console.log("🏠 [ADDRESS CAPTURED]", address);
 
     const cart = userCarts[user];
+    const summary = cart.map((c) => `• ${c.name} × ${c.qty} = ₹${c.price * c.qty}`).join("\n");
     const total = cart.reduce((s, c) => s + c.qty * c.price, 0);
-    const orderSummary = cart.map((c) => `• ${c.name} × ${c.qty} = ₹${c.qty * c.price}`).join("\n");
 
-    await sendButtons(
-      `📦 *Confirm Order*\n\n${orderSummary}\n\nTotal: ₹${total}\n📍 Address:\n${address}`,
-      [
-        { id: "confirm_yes", title: "Confirm ✅" },
-        { id: "confirm_no", title: "Edit ✏️" },
-      ]
-    );
+    await sendButtons(`📦 *Confirm your order*\n\n${summary}\n\nTotal: ₹${total}\n📍 Address: ${address}`, [
+      { id: "confirm_yes", title: "Confirm ✅" },
+      { id: "confirm_no", title: "Edit ✏️" },
+    ]);
     return;
   }
 
+  // 8️⃣ Confirm / Edit
   if (msg.interactive?.button_reply?.id === "confirm_no") {
     userStates[user] = "ASK_ADDRESS";
     await sendText("✏️ Please send your corrected address:");
@@ -169,14 +188,13 @@ export async function handleIncoming(msg: WAMsg) {
 
   if (msg.interactive?.button_reply?.id === "confirm_yes") {
     const cart = userCarts[user];
+    const address = userAddress[user];
+    const summary = cart.map((c) => `• ${c.name} × ${c.qty} = ₹${c.price * c.qty}`).join("\n");
     const total = cart.reduce((s, c) => s + c.qty * c.price, 0);
-    const orderText = cart.map((c) => `• ${c.name} × ${c.qty} = ₹${c.qty * c.price}`).join("\n");
-    const address = userAddress[user] || "Not provided";
 
-    console.log("✅ [ORDER CONFIRMED]", { user, cart, total, address });
-    userStates[user] = "DONE";
+    console.log("✅ [ORDER CONFIRMED]", { user, address, total });
 
-    await sendText(`✅ Order Confirmed!\nTotal: ₹${total}\nETA: 30–40 mins\nThank you for ordering with AV Food Factory 🙏`);
+    await sendText(`✅ Order Confirmed!\n💰 Total: ₹${total}\nETA: 30–40 mins\nThank you for ordering with AV Food Factory 🙏`);
 
     // Notify admin
     await sendWhatsAppMessage({
@@ -184,18 +202,19 @@ export async function handleIncoming(msg: WAMsg) {
       to: ADMIN,
       type: "text",
       text: {
-        body: `📢 *New Order Received!*\n👤 User: ${user}\n💰 Total: ₹${total}\n📍 Address: ${address}\n\n${orderText}`,
+        body: `📢 *New Order Received!*\n👤 User: ${user}\n💰 Total: ₹${total}\n📍 Address: ${address}\n\n${summary}`,
       },
     });
 
-    // Reset user state
+    // Reset
     userCarts[user] = [];
     userStates[user] = "IDLE";
+    userAddress[user] = "";
     return;
   }
 
-  // Default fallback
-  await sendButtons("🤖 I didn’t get that. What would you like to do?", [
+  // 9️⃣ Default fallback
+  await sendButtons("🤖 I didn’t get that. What would you like to do next?", [
     { id: "menu", title: "View Menu" },
     { id: "checkout", title: "Checkout" },
     { id: "clear", title: "Clear Cart" },
