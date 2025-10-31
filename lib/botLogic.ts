@@ -1,289 +1,249 @@
 import { Session } from "@/models/Session";
 import { Order } from "@/models/Order";
-import { sendText, sendButtons, sendList, notifyAdmin } from "@/lib/meta";
-import type { WAMsg, SessionState, CartItem } from "@/lib/types";
+import type { WAMsg, CartItem, SessionState } from "@/lib/types";
 
+/** Menu Items */
 export const MENU = [
   { id: "paneer_tikka", name: "Paneer Tikka", price: 180 },
   { id: "butter_chicken", name: "Butter Chicken", price: 250 },
   { id: "veg_biryani", name: "Veg Biryani", price: 160 },
-  // { id: "gulab_jamun", name: "Gulab Jamun", price: 90 },
+  { id: "dal_makhani", name: "Dal Makhani", price: 140 },
+  { id: "roti", name: "Tandoori Roti", price: 20 },
+  { id: "gulab_jamun", name: "Gulab Jamun", price: 90 },
+  { id: "cold_drink", name: "Cold Drink", price: 50 },
 ];
 
-function menuSections() {
-  return [
-    {
-      title: "Popular",
-      rows: MENU.map((i) => ({
-        id: `add_${i.id}`,
-        title: `${i.name} — ₹${i.price}`,
-        description: "Tap to add",
-      })),
-    },
-  ];
-}
+const buildMenuList = () => [
+  {
+    title: "Popular Items 🍽",
+    rows: MENU.map((i) => ({
+      id: `add_${i.id}`,
+      title: `${i.name} — ₹${i.price}`,
+      description: "Tap to add",
+    })),
+  },
+];
 
-function calcSubtotal(cart: CartItem[]) {
-  return cart.reduce((s, i) => s + i.price * i.qty, 0);
-}
+/** Helper functions */
+const calcTotal = (cart: CartItem[]) =>
+  cart.reduce((sum, i) => sum + i.price * i.qty, 0);
 
-function renderCart(cart: CartItem[]) {
-  if (!cart.length) return "🛒 Cart is empty.";
-  return (
-    cart.map((i) => `• ${i.name} x ${i.qty} — ₹${i.price * i.qty}`).join("\n") +
-    `\n\nSubtotal: ₹${calcSubtotal(cart)}`
-  );
-}
+const renderCart = (cart: CartItem[]) =>
+  cart.length
+    ? cart.map((i) => `• ${i.name} × ${i.qty} = ₹${i.price * i.qty}`).join("\n")
+    : "🛒 Your cart is empty.";
 
-function findMenuItem(id: string) {
-  return MENU.find((m) => m.id === id);
-}
-
-// ⚙️ Main bot logic handler with detailed logging
+/**
+ * handleIncoming() — pure logic.
+ * Receives a WhatsApp message → returns an array of reply payloads
+ */
 export async function handleIncoming(msg: WAMsg) {
-  console.log("📥 [INCOMING]", {
-    from: msg.from,
-    type: msg.type,
-    text: msg.text?.body,
-    interactive: msg.interactive?.button_reply || msg.interactive?.list_reply,
-  });
-
+  const replies: any[] = [];
   const user = msg.from;
-  let session = await Session.findOne({ user });
+  const text = msg.text?.body?.trim().toLowerCase() || "";
 
+  console.log("📥 handleIncoming()", { user, type: msg.type, text });
+
+  // 🧩 Fetch or create session
+  let session = await Session.findOne({ user });
   if (!session) {
     session = await Session.create({ user, state: "IDLE", cart: [] });
-    console.log("🆕 [SESSION CREATED]", user);
-  } else {
-    console.log("📄 [SESSION FOUND]", { user, state: session.state });
+    console.log("🆕 Session created for", user);
   }
 
-  const text = msg.text?.body?.trim().toLowerCase() || "";
+  // Update activity timestamp
   await Session.updateOne({ _id: session._id }, { lastMessageAt: new Date() });
 
-  // GLOBAL COMMANDS
-  if (["menu", "order", "start", "hi", "hello", "hey"].includes(text)) {
-    console.log("🔁 [GLOBAL COMMAND] Menu flow triggered by", user);
-    await Session.updateOne({ _id: session._id }, { state: "BROWSING_MENU", tempItemId: null });
-    await sendList(user, "AV Food Factory", "Browse & add items to cart:", menuSections());
-    return;
+  // 🧠 ROUTING by state and message
+  const sendText = (body: string) =>
+    replies.push({ messaging_product: "whatsapp", to: user, type: "text", text: { body } });
+
+  const sendButtons = (body: string, buttons: { id: string; title: string }[]) =>
+    replies.push({
+      messaging_product: "whatsapp",
+      to: user,
+      type: "interactive",
+      interactive: {
+        type: "button",
+        body: { text: body },
+        action: { buttons: buttons.map((b) => ({ type: "reply", reply: b })) },
+      },
+    });
+
+  const sendList = (header: string, body: string) =>
+    replies.push({
+      messaging_product: "whatsapp",
+      to: user,
+      type: "interactive",
+      interactive: {
+        type: "list",
+        header: { type: "text", text: header },
+        body: { text: body },
+        action: { sections: buildMenuList() },
+      },
+    });
+
+  // 🏁 ENTRY POINT
+  if (["hi", "hello", "hey", "start"].includes(text)) {
+    await Session.updateOne({ _id: session._id }, { state: "BROWSING_MENU" });
+    sendText("👋 Welcome to *AV Food Factory!* 🍱\n\nYou can browse our menu or view your cart anytime.\n\nType *menu* to start ordering.");
+    return replies;
   }
 
-  if (["cart", "view cart"].includes(text)) {
-    console.log("🛒 [CART VIEW] User requested cart:", user);
-    await sendButtons(user, renderCart(session.cart), [
+  if (text === "menu") {
+    await Session.updateOne({ _id: session._id }, { state: "BROWSING_MENU" });
+    sendList("🍽 AV Food Factory", "Select an item to add to your cart:");
+    return replies;
+  }
+
+  if (text === "cart") {
+    const cartText = renderCart(session.cart);
+    sendButtons(`${cartText}\n\nSubtotal: ₹${calcTotal(session.cart)}`, [
       { id: "btn_checkout", title: "Checkout" },
-      { id: "btn_browse", title: "Add more" },
-      { id: "btn_clear", title: "Clear cart" },
+      { id: "btn_browse", title: "Add More" },
+      { id: "btn_clear", title: "Clear Cart" },
     ]);
-    return;
+    return replies;
   }
 
-  if (["clear", "clear cart"].includes(text)) {
-    console.log("🧹 [CART CLEARED]", user);
+  if (text === "clear") {
     await Session.updateOne({ _id: session._id }, { cart: [] });
-    await sendText(user, "🧹 Cart cleared. Type *menu* to add items.");
-    return;
+    sendText("🧹 Your cart has been cleared. Type *menu* to start fresh.");
+    return replies;
   }
 
-  // Handle message types
-  switch (msg.type) {
-    case "interactive": {
-      const choice = msg.interactive?.button_reply?.id || msg.interactive?.list_reply?.id || "";
-      console.log("🎛 [INTERACTIVE INPUT]", { user, choice });
+  // 🧩 INTERACTIVE MESSAGE HANDLING
+  if (msg.interactive) {
+    const choice =
+      msg.interactive.button_reply?.id || msg.interactive.list_reply?.id || "";
+    console.log("🎛 Interactive choice:", choice);
 
-      // BUTTONS
-      switch (choice) {
-        case "btn_browse":
-          console.log("🧾 User chose to browse more items");
-          await Session.updateOne({ _id: session._id }, { state: "BROWSING_MENU" });
-          await sendList(user, "AV Food Factory", "Browse & add items to cart:", menuSections());
-          return;
-
-        case "btn_clear":
-          console.log("🧹 User cleared cart");
-          await Session.updateOne({ _id: session._id }, { cart: [] });
-          await sendText(user, "🧹 Cart cleared. Type *menu* to add items.");
-          return;
-
-        case "btn_checkout":
-          console.log("💳 User proceeded to checkout");
-          if (!session.cart.length) {
-            await sendText(user, "Your cart is empty. Type *menu* to add items.");
-            return;
-          }
-          await Session.updateOne({ _id: session._id }, { state: "ASK_ADDRESS" });
-          await sendText(user, "📍 Please share your *delivery address* in one message.");
-          return;
+    // LIST SELECT → add item
+    if (choice.startsWith("add_")) {
+      const itemId = choice.replace("add_", "");
+      const item = MENU.find((m) => m.id === itemId);
+      if (!item) {
+        sendText("❌ That item isn’t available right now. Please try again.");
+        return replies;
       }
-
-      // LIST SELECTIONS
-      if (choice.startsWith("add_")) {
-        const itemId = choice.replace("add_", "");
-        const item = findMenuItem(itemId);
-        console.log("➕ [ADD ITEM]", { user, itemId });
-        if (!item) {
-          await sendText(user, "Item not found. Type *menu* to try again.");
-          return;
-        }
-        await Session.updateOne(
-          { _id: session._id },
-          { state: "ADDING_ITEM_QTY", tempItemId: item.id }
-        );
-        await sendButtons(user, `How many *${item.name}*?`, [
-          { id: "qty_1", title: "1" },
-          { id: "qty_2", title: "2" },
-          { id: "qty_3", title: "3" },
-        ]);
-        return;
-      }
-
-      // QUANTITY BUTTONS
-      if (choice.startsWith("qty_")) {
-        const qty = Number(choice.replace("qty_", ""));
-        console.log("🍽 [QUANTITY CHOSEN]", { user, qty });
-        if (session.state !== "ADDING_ITEM_QTY" || !session.tempItemId) {
-          await sendText(user, "No item selected. Type *menu* to add items.");
-          return;
-        }
-        const item = findMenuItem(session.tempItemId);
-        if (!item || qty <= 0) {
-          await sendText(user, "Invalid quantity.");
-          return;
-        }
-
-        const existing = session.cart.find((c: any) => c.id === item.id);
-        if (existing) existing.qty += qty;
-        else session.cart.push({ id: item.id, name: item.name, price: item.price, qty });
-        await session.save();
-
-        console.log("🛍 [CART UPDATED]", session.cart);
-
-        await sendButtons(
-          user,
-          `${renderCart(session.cart)}\n\nAdd more or checkout?`,
-          [
-            { id: "btn_browse", title: "Add more" },
-            { id: "btn_checkout", title: "Checkout" },
-            { id: "btn_clear", title: "Clear cart" },
-          ]
-        );
-        await Session.updateOne(
-          { _id: session._id },
-          { state: "BROWSING_MENU", tempItemId: null }
-        );
-        return;
-      }
-
-      // CONFIRMATION
-      if (choice === "confirm_yes") {
-        console.log("✅ [ORDER CONFIRMATION]", user);
-        const subtotal = calcSubtotal(session.cart);
-        const order = await Order.create({
-          user,
-          items: session.cart,
-          subtotal,
-          deliveryAddress: session.deliveryAddress,
-        });
-        console.log("🧾 [ORDER CREATED]", { id: order._id, subtotal });
-        await sendText(
-          user,
-          `✅ Order placed!\nOrder ID: ${order._id}\nTotal: ₹${subtotal}\nETA: ~35–45 min.\n\nThank you!`
-        );
-        await notifyAdmin(
-          `📦 New Order\nUser: ${user}\nTotal: ₹${subtotal}\nAddress: ${session.deliveryAddress}\nItems:\n${session.cart
-            .map((i: any) => `• ${i.name} x ${i.qty} = ₹${i.qty * i.price}`)
-            .join("\n")}`
-        );
-        await Session.updateOne(
-          { _id: session._id },
-          { state: "DONE", cart: [], deliveryAddress: null, tempItemId: null }
-        );
-        return;
-      }
-
-      if (choice === "confirm_no") {
-        console.log("✏️ [USER EDITING ADDRESS]");
-        await Session.updateOne({ _id: session._id }, { state: "BROWSING_MENU" });
-        await sendList(user, "AV Food Factory", "No problem. Continue browsing:", menuSections());
-        return;
-      }
-
-      console.log("❓ [UNKNOWN INTERACTIVE CHOICE]", choice);
-      await sendText(user, "I didn't get that. Type *menu* to browse.");
-      return;
+      await Session.updateOne({ _id: session._id }, { state: "ADDING_ITEM_QTY", tempItemId: item.id });
+      sendButtons(`How many *${item.name}* would you like to order?`, [
+        { id: "qty_1", title: "1" },
+        { id: "qty_2", title: "2" },
+        { id: "qty_3", title: "3" },
+      ]);
+      return replies;
     }
 
-    case "location": {
-      console.log("📍 [LOCATION RECEIVED]", msg.location);
-      if (session.state === "ASK_ADDRESS") {
-        const { latitude, longitude, address } = msg.location!;
-        const addr = address
-          ? `${address}\n(${latitude}, ${longitude})`
-          : `Pin: ${latitude}, ${longitude}`;
-        await Session.updateOne(
-          { _id: session._id },
-          { deliveryAddress: addr, state: "CONFIRMING_ORDER" }
-        );
-        await sendButtons(
-          user,
-          `📍 Address:\n${addr}\n\n${renderCart(session.cart)}\n\nConfirm order?`,
-          [
-            { id: "confirm_yes", title: "Confirm" },
-            { id: "confirm_no", title: "Edit" },
-          ]
-        );
-        return;
+    // QUANTITY CHOICE
+    if (choice.startsWith("qty_")) {
+      const qty = Number(choice.replace("qty_", ""));
+      const item = MENU.find((m) => m.id === session.tempItemId);
+      if (!item) {
+        sendText("Item not found. Type *menu* to start over.");
+        return replies;
       }
-      await sendText(user, "Thanks for the location. Type *menu* to order.");
-      return;
+
+      const existing = session.cart.find((c: any) => c.id === item.id);
+      if (existing) existing.qty += qty;
+      else session.cart.push({ id: item.id, name: item.name, price: item.price, qty });
+      await session.save();
+
+      console.log("🛍 Cart updated:", session.cart);
+
+      sendButtons(`🛒 Added *${item.name} × ${qty}*.\n\n${renderCart(session.cart)}\n\nSubtotal: ₹${calcTotal(session.cart)}.`, [
+        { id: "btn_browse", title: "Add More" },
+        { id: "btn_checkout", title: "Checkout" },
+        { id: "btn_clear", title: "Clear Cart" },
+      ]);
+      await Session.updateOne({ _id: session._id }, { state: "BROWSING_MENU", tempItemId: null });
+      return replies;
     }
 
-    case "text": {
-      console.log("💬 [TEXT RECEIVED]", { text, state: session.state });
-      switch (session.state as SessionState) {
-        case "ASK_ADDRESS": {
-          const addr = msg.text?.body?.trim();
-          if (!addr) {
-            await sendText(user, "Please type your address in one message.");
-            return;
-          }
-          console.log("🏠 [ADDRESS RECEIVED]", addr);
-          await Session.updateOne(
-            { _id: session._id },
-            { deliveryAddress: addr, state: "CONFIRMING_ORDER" }
-          );
-          await sendButtons(
-            user,
-            `📍 Address:\n${addr}\n\n${renderCart(session.cart)}\n\nConfirm order?`,
-            [
-              { id: "confirm_yes", title: "Confirm" },
-              { id: "confirm_no", title: "Edit" },
-            ]
-          );
-          return;
-        }
-
-        default:
-          if (text.includes("menu")) {
-            console.log("📋 [REDIRECT TO MENU]");
-            await Session.updateOne({ _id: session._id }, { state: "BROWSING_MENU" });
-            await sendList(user, "AV Food Factory", "Browse & add items to cart:", menuSections());
-            return;
-          }
-          console.log("🤖 [FALLBACK PROMPT]");
-          await sendButtons(user, "What would you like to do?", [
-            { id: "btn_browse", title: "View Menu" },
-            { id: "btn_checkout", title: "Checkout" },
-            { id: "btn_clear", title: "Clear Cart" },
-          ]);
-          return;
+    // BUTTONS → checkout flow
+    if (choice === "btn_checkout") {
+      if (!session.cart.length) {
+        sendText("🛒 Your cart is empty. Type *menu* to add items.");
+        return replies;
       }
+      await Session.updateOne({ _id: session._id }, { state: "ASK_ADDRESS" });
+      sendText("📍 Please send your *delivery address* now.");
+      return replies;
     }
 
-    default:
-      console.log("❌ [UNSUPPORTED MESSAGE TYPE]", msg.type);
-      await sendText(user, "Unsupported message type. Please send text or use the buttons.");
-      return;
+    if (choice === "btn_browse") {
+      sendList("🍽 AV Food Factory", "Select another item to add to your cart:");
+      return replies;
+    }
+
+    if (choice === "btn_clear") {
+      await Session.updateOne({ _id: session._id }, { cart: [] });
+      sendText("🧹 Cart cleared. Type *menu* to start over.");
+      return replies;
+    }
+
+    if (choice === "confirm_yes") {
+      const subtotal = calcTotal(session.cart);
+      const order = await Order.create({
+        user,
+        items: session.cart,
+        subtotal,
+        deliveryAddress: session.deliveryAddress,
+      });
+      sendText(`✅ Order Confirmed!\n\nOrder ID: ${order._id}\nTotal: ₹${subtotal}\nEstimated Delivery: 30–40 min.\n\nThank you for ordering with AV Food Factory! 🙏`);
+      await Session.updateOne({ _id: session._id }, { cart: [], deliveryAddress: null, state: "DONE" });
+      // Admin notification payload (you can send this manually)
+      replies.push({
+        messaging_product: "whatsapp",
+        to: process.env.ADMIN_WHATSAPP_NUMBER!,
+        type: "text",
+        text: {
+          body: `📦 *New Order Alert!*\nUser: ${user}\nTotal: ₹${subtotal}\nAddress: ${session.deliveryAddress}\n\n${renderCart(session.cart)}`,
+        },
+      });
+      return replies;
+    }
+
+    if (choice === "confirm_no") {
+      await Session.updateOne({ _id: session._id }, { state: "ASK_ADDRESS" });
+      sendText("✏️ Please send your updated address:");
+      return replies;
+    }
   }
+
+  // 🧭 ADDRESS CAPTURE (text or location)
+  if (msg.type === "location" && session.state === "ASK_ADDRESS") {
+    const loc = msg.location!;
+    const addr = loc.address
+      ? `${loc.address}\n(${loc.latitude}, ${loc.longitude})`
+      : `Location: ${loc.latitude}, ${loc.longitude}`;
+    await Session.updateOne({ _id: session._id }, { deliveryAddress: addr, state: "CONFIRMING_ORDER" });
+    sendButtons(`📍 Address:\n${addr}\n\n${renderCart(session.cart)}\n\nConfirm order?`, [
+      { id: "confirm_yes", title: "Confirm" },
+      { id: "confirm_no", title: "Edit" },
+    ]);
+    return replies;
+  }
+
+  if (msg.type === "text" && session.state === "ASK_ADDRESS") {
+    const addr = msg.text?.body?.trim();
+    if (!addr) {
+      sendText("❌ Please type your address clearly.");
+      return replies;
+    }
+    await Session.updateOne({ _id: session._id }, { deliveryAddress: addr, state: "CONFIRMING_ORDER" });
+    sendButtons(`📍 Address:\n${addr}\n\n${renderCart(session.cart)}\n\nConfirm order?`, [
+      { id: "confirm_yes", title: "Confirm" },
+      { id: "confirm_no", title: "Edit" },
+    ]);
+    return replies;
+  }
+
+  // 🔚 Default fallback
+  sendButtons("🤖 I didn’t quite catch that. What would you like to do next?", [
+    { id: "btn_browse", title: "View Menu" },
+    { id: "btn_checkout", title: "Checkout" },
+    { id: "btn_clear", title: "Clear Cart" },
+  ]);
+  return replies;
 }

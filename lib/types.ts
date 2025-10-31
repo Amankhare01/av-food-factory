@@ -1,19 +1,47 @@
+/**
+ * WhatsApp incoming message structure
+ */
 export type WAMsg = {
-  from: string; // user phone (E.164 without +) from WhatsApp
-  id: string;   // WA message id
+  id: string;
+  from: string; // WhatsApp number in E.164 without '+'
   timestamp: string;
-  type: "text" | "interactive" | "image" | "audio" | "location" | string;
-  text?: { body: string };
+  type: "text" | "interactive" | "location" | string;
+  text?: {
+    body: string;
+  };
   interactive?: {
     type: "button_reply" | "list_reply";
-    button_reply?: { id: string; title: string };
-    list_reply?: { id: string; title: string; description?: string };
+    button_reply?: {
+      id: string;
+      title: string;
+    };
+    list_reply?: {
+      id: string;
+      title: string;
+      description?: string;
+    };
   };
-  location?: { latitude: string; longitude: string; name?: string; address?: string };
+  location?: {
+    latitude: string;
+    longitude: string;
+    name?: string;
+    address?: string;
+  };
 };
 
-export type CartItem = { id: string; name: string; price: number; qty: number };
+/**
+ * Cart item used in Session and Order models
+ */
+export type CartItem = {
+  id: string;
+  name: string;
+  price: number;
+  qty: number;
+};
 
+/**
+ * FSM (Finite State Machine) for user flow
+ */
 export type SessionState =
   | "IDLE"
   | "BROWSING_MENU"
@@ -21,3 +49,36 @@ export type SessionState =
   | "ASK_ADDRESS"
   | "CONFIRMING_ORDER"
   | "DONE";
+
+/**
+ * Outgoing message type for WhatsApp Cloud API
+ */
+export type OutgoingMessage =
+  | {
+      messaging_product: "whatsapp";
+      to: string;
+      type: "text";
+      text: { body: string };
+    }
+  | {
+      messaging_product: "whatsapp";
+      to: string;
+      type: "interactive";
+      interactive:
+        | {
+            type: "button";
+            body: { text: string };
+            action: { buttons: { type: "reply"; reply: { id: string; title: string } }[] };
+          }
+        | {
+            type: "list";
+            header: { type: "text"; text: string };
+            body: { text: string };
+            action: {
+              sections: {
+                title: string;
+                rows: { id: string; title: string; description?: string }[];
+              }[];
+            };
+          };
+    };

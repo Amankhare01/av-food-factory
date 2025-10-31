@@ -1,82 +1,51 @@
-import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { MessageLog } from "@/models/MessageLog";
 import { handleIncoming } from "@/lib/botLogic";
+import { sendWhatsAppMessage } from "@/lib/meta";
 
-const VERIFY_TOKEN = process.env.META_VERIFY_TOKEN!;
+export const runtime = "nodejs"; // needed for Node fetch
 
-/** Optional signature check — using VERIFY_TOKEN as fallback */
-// function verifySignature(req: NextRequest, rawBody: string) {
-//   const sig = req.headers.get("x-hub-signature-256");
-//   if (!sig) return false;
-//   try {
-//     const hmac = crypto.createHmac("sha256", VERIFY_TOKEN);
-//     hmac.update(rawBody, "utf8");
-//     const expected = `sha256=${hmac.digest("hex")}`;
-//     return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
-//   } catch (err) {
-//     console.error("❌ Signature verify error:", err);
-//     return false;
-//   }
-// }
-
-/** ✅ Webhook verification (GET) */
+/** Webhook verification (Meta GET) */
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const mode = searchParams.get("hub.mode");
   const token = searchParams.get("hub.verify_token");
   const challenge = searchParams.get("hub.challenge");
+  const VERIFY_TOKEN = process.env.META_VERIFY_TOKEN!;
 
-  console.log("🔍 VERIFY:", { mode, token, challenge });
+  console.log("🔍 Webhook verification:", { mode, token });
 
   if (mode === "subscribe" && token === VERIFY_TOKEN) {
     console.log("✅ Webhook verified successfully.");
     return new NextResponse(challenge, { status: 200 });
   }
-
-  console.warn("⚠️ Webhook verification failed.");
   return new NextResponse("Forbidden", { status: 403 });
 }
 
-/** ✅ Main POST webhook — handle incoming messages */
+/** Handle incoming WhatsApp messages (Meta POST) */
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
   console.log("📩 Incoming webhook hit!");
 
-
-
-
   try {
     await connectDB();
-    console.log("✅ MongoDB connected");
-  } catch (err) {
-    console.error("❌ MongoDB connection failed:", err);
-    return NextResponse.json({ success: false, error: "DB connection failed" }, { status: 500 });
-  }
-
-  try {
     const data = JSON.parse(rawBody);
     console.log("📦 Payload:", JSON.stringify(data, null, 2));
 
-    const changes = data.entry?.[0]?.changes?.[0]?.value;
-    const messages = changes?.messages || [];
-
+    const messages = data.entry?.[0]?.changes?.[0]?.value?.messages || [];
     if (!messages.length) {
       console.log("ℹ️ No messages found in payload");
-      return NextResponse.json({ success: true, message: "No messages" });
+      return NextResponse.json({ success: true });
     }
 
     for (const m of messages) {
-      console.log("💬 Processing message:", m.id, m.from, m.type);
-
-      // Check duplicate message
-      const seen = await MessageLog.findOne({ waMessageId: m.id });
-      if (seen) {
-        console.log("⏭️ Duplicate message skipped:", m.id);
+      const waMessageId = m.id;
+      if (await MessageLog.findOne({ waMessageId })) {
+        console.log("⏭️ Duplicate message skipped:", waMessageId);
         continue;
       }
-      await MessageLog.create({ waMessageId: m.id });
+      await MessageLog.create({ waMessageId });
 
       const waMsg = {
         id: m.id,
@@ -88,20 +57,25 @@ export async function POST(req: NextRequest) {
         location: m.location,
       };
 
-      try {
-        console.log("⚙️ Passing to bot logic...");
-        await handleIncoming(waMsg);
-        console.log("✅ Message handled successfully:", m.id);
-      } catch (err) {
-        console.error("❌ Bot logic error for", m.id, ":", err);
+      console.log("💬 Processing incoming message:", waMsg);
+
+      // Get replies from bot logic
+      const replies = await handleIncoming(waMsg);
+
+      // Send each reply via Meta API
+      for (const reply of replies) {
+        try {
+          await sendWhatsAppMessage(reply);
+          console.log("✅ Message sent successfully to", reply.to);
+        } catch (err) {
+          console.error("❌ Send failed for", reply.to, ":", err);
+        }
       }
     }
 
-    console.log("✅ Webhook completed.");
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("❌ Webhook POST error:", err);
-    // Always respond 200 to avoid Meta retries
-    return NextResponse.json({ success: false, error: String(err) }, { status: 200 });
+    return NextResponse.json({ success: false }, { status: 200 });
   }
 }
