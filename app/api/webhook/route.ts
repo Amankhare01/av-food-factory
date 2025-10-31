@@ -1,4 +1,5 @@
-export const runtime = "nodejs"; // ensure Node runtime for fetch
+export const runtime = "nodejs";
+
 import { NextRequest, NextResponse } from "next/server";
 import { handleIncoming } from "@/lib/botLogic";
 
@@ -45,6 +46,8 @@ export async function POST(req: NextRequest) {
       await handleIncoming(waMsg);
     }
 
+    // Give logs a moment to flush on Vercel
+    await new Promise((r) => setTimeout(r, 500));
     console.log("✅ Webhook completed successfully.");
     return NextResponse.json({ success: true });
   } catch (err) {
