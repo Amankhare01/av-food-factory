@@ -110,24 +110,33 @@ function buildMenuList(to: string) {
   };
 }
 
-function buildQtyButtons(to: string, itemName: string) {
+function buildQtyList(to: string, itemName: string) {
   return {
     messaging_product: "whatsapp",
     to,
     type: "interactive",
     interactive: {
-      type: "button",
+      type: "list",
       header: { type: "text", text: itemName },
       body: { text: "Select quantity:" },
+      footer: { text: "You can change later." },
       action: {
-        buttons: [1, 2, 3, 4, 5].map((n) => ({
-          type: "reply",
-          reply: { id: `QTY_${n}`, title: `${n}` },
-        })),
+        button: "Choose quantity",
+        sections: [
+          {
+            title: "Quantity",
+            rows: Array.from({ length: 10 }, (_, i) => i + 1).map((n) => ({
+              id: `QTY_${n}`,
+              title: `${n}`,
+              description: n === 1 ? "Single serving" : `${n} servings`,
+            })),
+          },
+        ],
       },
     },
   };
 }
+
 
 function buildDeliveryButtons(to: string) {
   return {
@@ -248,7 +257,8 @@ export async function handleIncoming({
       state.order.itemId = m.id;
       state.order.itemName = m.name;
       state.step = "AWAITING_QTY";
-      await sendWhatsAppMessage(buildQtyButtons(to, m.name));
+    await sendWhatsAppMessage(buildQtyList(to, m.name));
+
       return;
     }
     // If user typed text, re-show menu button
@@ -262,7 +272,8 @@ export async function handleIncoming({
       const qty = parseInt(postback.replace("QTY_", ""), 10);
       if (!Number.isFinite(qty) || qty <= 0) {
         await sendWhatsAppMessage(buildText(to, "Select a valid quantity."));
-        await sendWhatsAppMessage(buildQtyButtons(to, state.order.itemName || "Item"));
+        await sendWhatsAppMessage(buildQtyList(to, state.order.itemName || "Item"));
+
         return;
       }
       state.order.qty = qty;
@@ -271,7 +282,8 @@ export async function handleIncoming({
       return;
     }
     await sendWhatsAppMessage(buildText(to, "Please choose quantity using the buttons."));
-    await sendWhatsAppMessage(buildQtyButtons(to, state.order.itemName || "Item"));
+  await sendWhatsAppMessage(buildQtyList(to, state.order.itemName || "Item"));
+
     return;
   }
 
