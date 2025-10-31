@@ -397,30 +397,64 @@ export async function handleIncoming({ from, userMsg }: { from: string; userMsg:
 
   // 8. Confirm
   if (state.step === "AWAITING_CONFIRM") {
-    if (postback === "CONFIRM_YES") {
-      const summary = summarize(state.order);
-      await sendWhatsAppMessage(buildText(to, `🎉 *Order Confirmed!*\n\n${summary}\n\nThank you for ordering with AV Food Factory.`));
+   if (postback === "CONFIRM_YES") {
+  const summary = summarize(state.order);
 
-      // Forward to admin
-      const items = MENU[state.order.categoryId!] || [];
-      const m = items.find((x) => x.id === state.order.itemId);
-      const total = (state.order.qty || 0) * (m?.price || 0);
-      const adminMsg =
-        `📩 *New Order*\n` +
-        `From: ${from}\n` +
-        `Category: ${state.order.categoryName}\n` +
-        `Item: ${state.order.itemName}\n` +
-        `Qty: ${state.order.qty}\n` +
-        `Delivery: ${state.order.delivery}\n` +
-        `Phone: ${state.order.phone}\n` +
-        `Address: ${state.order.address || "-"}\n` +
-        `Total: ₹${total}\n` +
-        `\nTime: ${new Date().toLocaleString("en-IN")}`;
-      await sendWhatsAppMessage(buildText(ADMIN_PHONE, adminMsg));
+  // 1️⃣ Confirm to User
+  await sendWhatsAppMessage(
+    buildText(
+      to,
+      `🎉 *Order Confirmed!*\n\n${summary}\n\nThank you for ordering with AV Food Factory.`
+    )
+  );
 
-      userStates.set(from, { step: "INIT", order: {} });
-      return;
-    }
+  // 2️⃣ Calculate Total
+  const items = MENU[state.order.categoryId!] || [];
+  const m = items.find((x) => x.id === state.order.itemId);
+  const total = (state.order.qty || 0) * (m?.price || 0);
+
+  // 3️⃣ Save to DB
+  try {
+    const { Order } = await import("@/models/Order");
+    const connectDB = (await import("@/lib/mongodb")).default;
+    await connectDB();
+
+    await Order.create({
+      from,
+      categoryName: state.order.categoryName,
+      itemName: state.order.itemName,
+      qty: state.order.qty,
+      delivery: state.order.delivery,
+      phone: state.order.phone,
+      address: state.order.address,
+      total,
+    });
+
+    console.log("🗄️ Order saved to DB successfully");
+  } catch (err) {
+    console.error("❌ DB save error:", err);
+  }
+
+  // 4️⃣ Forward to Admin
+  const adminMsg =
+    `📩 *New Order*\n` +
+    `From: ${from}\n` +
+    `Category: ${state.order.categoryName}\n` +
+    `Item: ${state.order.itemName}\n` +
+    `Qty: ${state.order.qty}\n` +
+    `Delivery: ${state.order.delivery}\n` +
+    `Phone: ${state.order.phone}\n` +
+    `Address: ${state.order.address || "-"}\n` +
+    `Total: ₹${total}\n` +
+    `\nTime: ${new Date().toLocaleString("en-IN")}`;
+
+  await sendWhatsAppMessage(buildText(ADMIN_PHONE, adminMsg));
+
+  // 5️⃣ Reset user
+  userStates.set(from, { step: "INIT", order: {} });
+  return;
+}
+
     if (postback === "CONFIRM_NO") {
       await sendWhatsAppMessage(buildText(to, "Order cancelled. Type *hi* to start again."));
       userStates.set(from, { step: "INIT", order: {} });
