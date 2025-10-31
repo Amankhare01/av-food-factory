@@ -1,15 +1,9 @@
 /**
- * 🧩 WhatsApp Meta Cloud API Helper
- * Handles all outgoing messages to users/admins.
+ * 🧩 WhatsApp Cloud API Sender
  */
-
 const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID!;
 const ACCESS_TOKEN = process.env.META_ACCESS_TOKEN!;
 
-/**
- * ✅ Send a WhatsApp message via Cloud API
- * @param msg - JSON payload (text / interactive / list)
- */
 export async function sendWhatsAppMessage(msg: any) {
   const url = `https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`;
 
@@ -28,17 +22,17 @@ export async function sendWhatsAppMessage(msg: any) {
     });
 
     const text = await res.text();
-    console.log(`📬 [WA RESPONSE] ${res.status} ${res.statusText}`);
+    console.log(`📬 [WA RESPONSE] ${res.status}: ${text}`);
 
     if (!res.ok) {
       console.error("🚨 [WA SEND ERROR]", text);
       throw new Error(`WA API Error ${res.status}: ${text}`);
     }
 
-    console.log("✅ [WA SEND SUCCESS]", text);
-    return { ok: true, status: res.status, data: text };
+    console.log("✅ [WA SEND SUCCESS]");
+    return { ok: true };
   } catch (err: any) {
     console.error("❌ [WA SEND EXCEPTION]", err?.message || err);
-    return { ok: false, error: err?.message || err };
+    return { ok: false, error: err?.message };
   }
 }
