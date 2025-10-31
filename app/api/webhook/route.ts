@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
       return "";
     })();
 
-    await handleIncoming({ from, userMsg, raw: messages });
+    await handleIncoming({ from, userMsg });
 
     return NextResponse.json({ ok: true });
   } catch (err) {
