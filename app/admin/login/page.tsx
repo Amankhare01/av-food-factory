@@ -31,7 +31,6 @@ export default function Login() {
         <input className="mt-3 w-full h-11 rounded border px-3" placeholder="Password" type="password" value={pass} onChange={e=>setPass(e.target.value)} />
         {err && <p className="mt-3 text-sm text-red-600">{err}</p>}
         <button disabled={loading} className="mt-4 w-full h-11 rounded bg-nawab-emerald text-white">{loading?'Signing in…':'Sign in'}</button>
-        <p className="mt-3 text-xs text-slate-500">Default: ADMIN_USER=admin, ADMIN_PASS=changeme (set env in prod)</p>
       </form>
     </div>
   );

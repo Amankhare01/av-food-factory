@@ -14,10 +14,12 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${inter.variable} ${marcellus.variable}`}>
-      <NavBar/>
-      <body className="bg-nawab-ivory text-nawab-ink antialiased">{children}</body>
-      <WhatsAppButton/>
-      <Footer/>
+      <body className="bg-nawab-ivory text-nawab-ink antialiased">
+        <NavBar />
+        {children}
+        <WhatsAppButton />
+        <Footer />
+      </body>
     </html>
   );
 }

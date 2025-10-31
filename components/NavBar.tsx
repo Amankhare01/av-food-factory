@@ -34,18 +34,18 @@ export default function NavBar() {
         {/* DESKTOP LINKS */}
         <ul className="hidden md:flex items-center gap-8 text-[15px] font-medium text-gray-700">
           <li>
-            <a href="/services" className="hover:text-[#0f766e] transition-colors">
+            <a href="#services" className="hover:text-[#0f766e] transition-colors">
               Services
             </a>
           </li>
           <li>
-            <a href="/contact" className="hover:text-[#0f766e] transition-colors">
+            <a href="#cta" className="hover:text-[#0f766e] transition-colors">
               Contact
             </a>
           </li>
           <li>
             <a
-              href="#cta"
+              href="/contact"
               className="inline-flex items-center rounded-full bg-[#0f766e] px-6 py-2.5 text-white text-sm font-semibold hover:bg-[#115e59] transition-all"
             >
               Get a Quote
@@ -59,19 +59,19 @@ export default function NavBar() {
         <div className="md:hidden border-t border-black/5 bg-white">
           <ul className="px-4 py-4 space-y-4 text-[15px] font-medium text-gray-800">
             <li>
-              <a onClick={() => setOpen(false)} href="/services" className="block hover:text-[#0f766e]">
+              <a onClick={() => setOpen(false)} href="#services" className="block hover:text-[#0f766e]">
                 Services
               </a>
             </li>
             <li>
-              <a onClick={() => setOpen(false)} href="/contact" className="block hover:text-[#0f766e]">
+              <a onClick={() => setOpen(false)} href="#cta" className="block hover:text-[#0f766e]">
                 Contact
               </a>
             </li>
             <li>
               <a
                 onClick={() => setOpen(false)}
-                href="#cta"
+                href="/contact"
                 className="inline-flex items-center justify-center w-full rounded-full bg-[#0f766e] px-6 py-2.5 text-white text-sm font-semibold hover:bg-[#115e59] transition-all"
               >
                 Get a Quote
