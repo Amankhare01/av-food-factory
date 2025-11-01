@@ -1,4 +1,5 @@
-// lib/botLogic.ts
+import connectDB from "./mongodb";
+import { Order } from "@/models/Order";
 const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID!;
 const ACCESS_TOKEN = process.env.META_ACCESS_TOKEN!;
 const ADMIN_PHONE = (process.env.ADMIN_WHATSAPP_NUMBER || "916306512288").replace("+", "");
@@ -354,7 +355,7 @@ export async function handleIncoming({ from, userMsg }: { from: string; userMsg:
 
   // 5. Delivery
   if (state.step === "AWAITING_DELIVERY") {
-    if (postback.startsWith("DELIVERY_")) {
+     if (postback.startsWith("DELIVERY_")) {
       const t = postback.replace("DELIVERY_", "") as "pickup" | "delivery";
       state.order.delivery = t;
       state.step = "AWAITING_PHONE";
@@ -397,10 +398,9 @@ export async function handleIncoming({ from, userMsg }: { from: string; userMsg:
 
   // 8. Confirm
   if (state.step === "AWAITING_CONFIRM") {
-   if (postback === "CONFIRM_YES") {
+ if (postback === "CONFIRM_YES") {
   const summary = summarize(state.order);
 
-  // 1️⃣ Confirm to User
   await sendWhatsAppMessage(
     buildText(
       to,
@@ -408,18 +408,16 @@ export async function handleIncoming({ from, userMsg }: { from: string; userMsg:
     )
   );
 
-  // 2️⃣ Calculate Total
+  // Calculate total
   const items = MENU[state.order.categoryId!] || [];
   const m = items.find((x) => x.id === state.order.itemId);
   const total = (state.order.qty || 0) * (m?.price || 0);
 
-  // 3️⃣ Save to DB
+  // ---- ✅ CONNECT & SAVE ORDER ----
   try {
-    const { Order } = await import("@/models/Order");
-    const connectDB = (await import("@/lib/mongodb")).default;
-    await connectDB();
 
-    await Order.create({
+    await connectDB(); // ensure connection
+    const saved = await Order.create({
       from,
       categoryName: state.order.categoryName,
       itemName: state.order.itemName,
@@ -429,13 +427,12 @@ export async function handleIncoming({ from, userMsg }: { from: string; userMsg:
       address: state.order.address,
       total,
     });
-
-    console.log("🗄️ Order saved to DB successfully");
+    console.log("🗄️ Order saved:", saved._id);
   } catch (err) {
-    console.error("❌ DB save error:", err);
+    console.error("❌ Error saving order:", err);
   }
 
-  // 4️⃣ Forward to Admin
+  // ---- Forward to admin ----
   const adminMsg =
     `📩 *New Order*\n` +
     `From: ${from}\n` +
@@ -450,10 +447,10 @@ export async function handleIncoming({ from, userMsg }: { from: string; userMsg:
 
   await sendWhatsAppMessage(buildText(ADMIN_PHONE, adminMsg));
 
-  // 5️⃣ Reset user
   userStates.set(from, { step: "INIT", order: {} });
   return;
 }
+
 
     if (postback === "CONFIRM_NO") {
       await sendWhatsAppMessage(buildText(to, "Order cancelled. Type *hi* to start again."));
