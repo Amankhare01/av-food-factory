@@ -246,6 +246,31 @@ function buildConfirmButtons(to: string, summary: string) {
   };
 }
 
+function buildPaymentButton(to: string, payLink: string, total: number) {
+  return {
+    messaging_product: "whatsapp",
+    to,
+    type: "interactive",
+    interactive: {
+      type: "button",
+      header: { type: "text", text: "💳 Complete Payment" },
+      body: {
+        text: `Your total is *₹${total}*.\nTap below to pay securely.`,
+      },
+      footer: { text: "Powered by Razorpay • AV Food Factory" },
+      action: {
+        buttons: [
+          {
+            type: "url",
+            url: payLink,
+            title: "💳 Pay Now",
+          },
+        ],
+      },
+    },
+  };
+}
+
 // ---- Validators ----
 function normalizePhone(s: string) {
   const digits = s.replace(/[^\d]/g, "");
@@ -398,13 +423,14 @@ export async function handleIncoming({ from, userMsg }: { from: string; userMsg:
 
   // 8. Confirm
   if (state.step === "AWAITING_CONFIRM") {
- if (postback === "CONFIRM_YES") {
+if (postback === "CONFIRM_YES") {
   const summary = summarize(state.order);
 
+  // Send order summary confirmation
   await sendWhatsAppMessage(
     buildText(
       to,
-      `🎉 *Order Confirmed!*\n\n${summary}\n\nThank you for ordering with AV Food Factory.`
+      `🎉 *Order Confirmed!*\n\n${summary}\n\nPlease proceed to payment below 👇`
     )
   );
 
@@ -413,10 +439,35 @@ export async function handleIncoming({ from, userMsg }: { from: string; userMsg:
   const m = items.find((x) => x.id === state.order.itemId);
   const total = (state.order.qty || 0) * (m?.price || 0);
 
-  // ---- ✅ CONNECT & SAVE ORDER ----
-  try {
+  // ---- ✅ CREATE PAYMENT LINK & SAVE ORDER ----
+  let payLink: string | null = null;
 
-    await connectDB(); // ensure connection
+  try {
+    // 1️⃣ Create Razorpay payment link
+    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/payment`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        amount: total,
+        name: state.order.itemName,
+        phone: state.order.phone,
+        orderId: Date.now(), // temporary unique id
+      }),
+    });
+
+    const data = await res.json();
+
+    if (data?.success) {
+      payLink = data.paymentLink.short_url;
+    } else {
+      console.error("⚠️ Failed to create Razorpay link:", data);
+      await sendWhatsAppMessage(
+        buildText(to, "⚠️ Error creating payment link. Please try again later.")
+      );
+    }
+
+    // 2️⃣ Save order in MongoDB
+    await connectDB();
     const saved = await Order.create({
       from,
       categoryName: state.order.categoryName,
@@ -426,15 +477,24 @@ export async function handleIncoming({ from, userMsg }: { from: string; userMsg:
       phone: state.order.phone,
       address: state.order.address,
       total,
+      paid: false,
     });
     console.log("🗄️ Order saved:", saved._id);
+
+    // 3️⃣ Send interactive Pay Now button
+    if (payLink) {
+      await sendWhatsAppMessage(buildPaymentButton(to, payLink, total));
+    }
   } catch (err) {
-    console.error("❌ Error saving order:", err);
+    console.error("❌ Payment or DB error:", err);
+    await sendWhatsAppMessage(
+      buildText(to, "⚠️ Something went wrong. Please try again later.")
+    );
   }
 
-  // ---- Forward to admin ----
+  // ---- 📩 Notify admin ----
   const adminMsg =
-    `📩 *New Order*\n` +
+    `📩 *New Order Received*\n` +
     `From: ${from}\n` +
     `Category: ${state.order.categoryName}\n` +
     `Item: ${state.order.itemName}\n` +
@@ -447,9 +507,11 @@ export async function handleIncoming({ from, userMsg }: { from: string; userMsg:
 
   await sendWhatsAppMessage(buildText(ADMIN_PHONE, adminMsg));
 
+  // Reset session for next order
   userStates.set(from, { step: "INIT", order: {} });
   return;
 }
+
 
 
     if (postback === "CONFIRM_NO") {
