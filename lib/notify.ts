@@ -1,3 +1,4 @@
+import { asWhatsApp, toE164 } from '@/app/utils/phone';
 import nodemailer from 'nodemailer';
 import twilio from 'twilio';
 
@@ -37,41 +38,74 @@ export async function notifyEmail(lead: Lead) {
 }
 
 export async function notifyWhatsApp(lead: Lead) {
-  const sid = process.env.TWILIO_SID;
+  const sid   = process.env.TWILIO_SID;
   const token = process.env.TWILIO_AUTH_TOKEN;
-  const from = process.env.TWILIO_WHATSAPP_FROM;
-  const to = process.env.NOTIFY_WHATSAPP_TO;
+  let from    = process.env.TWILIO_WHATSAPP_FROM;     // e.g. "+14155238886" or "whatsapp:+14155238886"
+  let to      = process.env.NOTIFY_WHATSAPP_TO;       // your own number for notifications
+
   if (!sid || !token || !from || !to) return { ok: false, skipped: true };
+
+  // Normalize numbers
   const client = twilio(sid, token);
-  const body = `New Lead • ${lead.name}\nPhone: ${lead.phone}\nGuests: ${lead.guests||'-'}\nSource: ${lead.source||'-'}\nWhen: ${new Date(lead.createdAt).toLocaleString()}`;
-  await client.messages.create({ from, to, body });
-  return { ok: true };
+  from = asWhatsApp(toE164(from)!);
+  to   = asWhatsApp(toE164(to)!);
+
+  const body =
+    `New Lead • ${lead.name}\n` +
+    `Phone: ${lead.phone}\n` +
+    `Guests: ${lead.guests || '-'}\n` +
+    `Source: ${lead.source || '-'}\n` +
+    `When: ${new Date(lead.createdAt).toLocaleString()}`;
+
+  try {
+    await client.messages.create({ from, to, body });
+    return { ok: true };
+  } catch (e:any) {
+    console.error('notifyWhatsApp failed:', e?.code, e?.message, e?.moreInfo);
+    return { ok: false, error: e?.message };
+  }
 }
 
+
 export async function autoReplyLead(lead: Lead) {
-  const sid = process.env.TWILIO_SID;
+  const sid   = process.env.TWILIO_SID;
   const token = process.env.TWILIO_AUTH_TOKEN;
   if (!sid || !token) return { ok: false, skipped: true };
-  const client = twilio(sid, token);
-  const rawPhone = lead.phone.trim();
-  const digits = rawPhone.replace(/\D/g, '');
-  const phoneE164 = rawPhone.startsWith('+') ? '+' + digits : (digits.startsWith('91') ? '+' + digits : '+91' + digits);
-  const message = `Hi ${lead.name}, thanks for contacting AV Food Factory! We received your request` +
-    `${lead.guests ? ` for ~${lead.guests} guests` : ''}. Our team will reach out shortly. — AV Food Factory`;
 
+  const client = twilio(sid, token);
+
+  const phoneE164 = toE164(lead.phone, '91');
+  if (!phoneE164) return { ok: false, error: 'Invalid phone' };
+
+  const message =
+    `Hi ${lead.name}, thanks for contacting AV Food Factory!` +
+    `${lead.guests ? ` We received your request for ~${lead.guests} guests.` : ''}` +
+    ` Our team will reach out shortly. — AV Food Factory`;
+
+  // Prefer WhatsApp if configured
   const waFrom = process.env.TWILIO_WHATSAPP_FROM;
   if (waFrom) {
     try {
-      await client.messages.create({ from: waFrom, to: 'whatsapp:' + phoneE164.replace(/^\+/, '+'), body: message });
-      return { ok: true };
-    } catch {}
+      await client.messages.create({
+        from: asWhatsApp(toE164(waFrom)!),
+        to: asWhatsApp(phoneE164),
+        body: message, // NOTE: Requires session (user wrote first) OR a pre-approved template
+      });
+      return { ok: true, via: 'whatsapp' };
+    } catch (e:any) {
+      console.error('autoReplyLead (WA) failed:', e?.code, e?.message, e?.moreInfo);
+    }
   }
-  const smsFrom = process.env.TWILIO_SMS_FROM;
+
+  // Fallback to SMS if configured
+  const smsFrom = process.env.TWILIO_SMS_FROM; // must be a Twilio SMS-capable number
   if (smsFrom) {
     try {
-      await client.messages.create({ from: smsFrom, to: phoneE164, body: message });
-      return { ok: true };
-    } catch {}
+      await client.messages.create({ from: toE164(smsFrom)!, to: phoneE164, body: message });
+      return { ok: true, via: 'sms' };
+    } catch (e:any) {
+      console.error('autoReplyLead (SMS) failed:', e?.code, e?.message, e?.moreInfo);
+    }
   }
   return { ok: false, skipped: true };
 }
