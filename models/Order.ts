@@ -2,17 +2,21 @@ import mongoose, { Schema, model, models } from "mongoose";
 
 const OrderSchema = new Schema(
   {
-    from: { type: String, required: true }, // user's WhatsApp number
+    from: String,
     categoryName: String,
     itemName: String,
     qty: Number,
-    delivery: { type: String, enum: ["pickup", "delivery"], default: "pickup" },
+    delivery: String,
     phone: String,
     address: String,
     total: Number,
-    timestamp: { type: Date, default: Date.now },
+    paid: { type: Boolean, default: false },
+    paymentId: String,
+    razorpayOrderId: String, 
   },
   { timestamps: true }
 );
+
+
 
 export const Order = models.Order || model("Order", OrderSchema);
