@@ -426,7 +426,7 @@ export async function handleIncoming({ from, userMsg }: { from: string; userMsg:
 if (postback === "CONFIRM_YES") {
   const summary = summarize(state.order);
 
-  // Send order summary confirmation
+  // 🟢 Step 1: Send order summary confirmation
   await sendWhatsAppMessage(
     buildText(
       to,
@@ -434,39 +434,15 @@ if (postback === "CONFIRM_YES") {
     )
   );
 
-  // Calculate total
+  // 🧮 Step 2: Calculate total
   const items = MENU[state.order.categoryId!] || [];
   const m = items.find((x) => x.id === state.order.itemId);
   const total = (state.order.qty || 0) * (m?.price || 0);
 
-  // ---- ✅ CREATE PAYMENT LINK & SAVE ORDER ----
-  let payLink: string | null = null;
+  let payLink: " ";
 
   try {
-    // 1️⃣ Create Razorpay payment link
-    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/payment`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        amount: total,
-        name: state.order.itemName,
-        phone: state.order.phone,
-        orderId: Date.now(), // temporary unique id
-      }),
-    });
-
-    const data = await res.json();
-
-    if (data?.success) {
-      payLink = data.paymentLink.short_url;
-    } else {
-      console.error("⚠️ Failed to create Razorpay link:", data);
-      await sendWhatsAppMessage(
-        buildText(to, "⚠️ Error creating payment link. Please try again later.")
-      );
-    }
-
-    // 2️⃣ Save order in MongoDB
+    // 🟢 Step 3: Connect to DB and save the order first
     await connectDB();
     const saved = await Order.create({
       from,
@@ -479,11 +455,43 @@ if (postback === "CONFIRM_YES") {
       total,
       paid: false,
     });
+
     console.log("🗄️ Order saved:", saved._id);
 
-    // 3️⃣ Send interactive Pay Now button
-    if (payLink) {
+    // 🟢 Step 4: Create Razorpay Payment Link
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+    if (!baseUrl) {
+      throw new Error("NEXT_PUBLIC_BASE_URL is not defined in environment");
+    }
+
+    const res = await fetch(`${baseUrl}/api/payment`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        amount: total,
+        name: state.order.itemName,
+        phone: state.order.phone,
+        mongoOrderId: saved._id, // 🧩 use real order ID
+      }),
+    });
+
+    const data = await res.json();
+
+    if (data?.success) {
+      payLink = data.paymentLink.short_url;
+
+      // optional: store Razorpay order id if present
+      if (data.orderId) {
+        await Order.findByIdAndUpdate(saved._id, { razorpayOrderId: data.orderId });
+      }
+
+      // 🟢 Step 5: Send interactive Pay Now button
       await sendWhatsAppMessage(buildPaymentButton(to, payLink, total));
+    } else {
+      console.error("⚠️ Failed to create Razorpay link:", data);
+      await sendWhatsAppMessage(
+        buildText(to, "⚠️ Error creating payment link. Please try again later.")
+      );
     }
   } catch (err) {
     console.error("❌ Payment or DB error:", err);
@@ -492,25 +500,30 @@ if (postback === "CONFIRM_YES") {
     );
   }
 
-  // ---- 📩 Notify admin ----
-  const adminMsg =
-    `📩 *New Order Received*\n` +
-    `From: ${from}\n` +
-    `Category: ${state.order.categoryName}\n` +
-    `Item: ${state.order.itemName}\n` +
-    `Qty: ${state.order.qty}\n` +
-    `Delivery: ${state.order.delivery}\n` +
-    `Phone: ${state.order.phone}\n` +
-    `Address: ${state.order.address || "-"}\n` +
-    `Total: ₹${total}\n` +
-    `\nTime: ${new Date().toLocaleString("en-IN")}`;
+  // 🟢 Step 6: Notify Admin
+  try {
+    const adminMsg =
+      `📩 *New Order Received*\n` +
+      `From: ${from}\n` +
+      `Category: ${state.order.categoryName}\n` +
+      `Item: ${state.order.itemName}\n` +
+      `Qty: ${state.order.qty}\n` +
+      `Delivery: ${state.order.delivery}\n` +
+      `Phone: ${state.order.phone}\n` +
+      `Address: ${state.order.address || "-"}\n` +
+      `Total: ₹${total}\n` +
+      `\nTime: ${new Date().toLocaleString("en-IN")}`;
 
-  await sendWhatsAppMessage(buildText(ADMIN_PHONE, adminMsg));
+    await sendWhatsAppMessage(buildText(ADMIN_PHONE, adminMsg));
+  } catch (err) {
+    console.error("⚠️ Failed to notify admin:", err);
+  }
 
-  // Reset session for next order
+  // 🟢 Step 7: Reset session
   userStates.set(from, { step: "INIT", order: {} });
   return;
 }
+
 
 
 

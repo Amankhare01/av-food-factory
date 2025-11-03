@@ -12,9 +12,11 @@ const OrderSchema = new Schema(
     total: Number,
     paid: { type: Boolean, default: false },
     paymentId: String,
+    razorpayOrderId: String, 
   },
   { timestamps: true }
 );
+
 
 
 export const Order = models.Order || model("Order", OrderSchema);
