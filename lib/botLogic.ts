@@ -246,30 +246,34 @@ function buildConfirmButtons(to: string, summary: string) {
   };
 }
 
-function buildPaymentButton(to: string, payLink: string, total: number) {
+function buildPaymentButton(to:string, payLink:string, total:number) {
   return {
     messaging_product: "whatsapp",
     to,
     type: "interactive",
     interactive: {
-      type: "button",
-      header: { type: "text", text: "💳 Complete Payment" },
+      type: "cta_url",
+      header: {
+        type: "text",
+        text: "💳 Complete Payment",
+      },
       body: {
         text: `Your total is *₹${total}*.\nTap below to pay securely.`,
       },
-      footer: { text: "Powered by Razorpay • AV Food Factory" },
+      footer: {
+        text: "Powered by Razorpay • AV Food Factory",
+      },
       action: {
-        buttons: [
-          {
-            type: "url",
-            url: payLink,
-            title: "💳 Pay Now",
-          },
-        ],
+        name: "cta_url",
+        parameters: {
+          display_text: "💳 Pay Now",
+          url: payLink,
+        },
       },
     },
   };
 }
+
 
 // ---- Validators ----
 function normalizePhone(s: string) {
