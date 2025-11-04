@@ -33,11 +33,21 @@ export default function NavBar() {
 
         {/* DESKTOP LINKS */}
         <ul className="hidden md:flex items-center gap-8 text-[15px] font-medium text-gray-700">
-          <li>
-            <a href="#services" className="hover:text-[#0f766e] transition-colors">
-              Services
-            </a>
-          </li>
+            <li>
+              <a onClick={() => setOpen(false)} href="#menu" className="block hover:text-[#0f766e]">
+                Menu
+              </a>
+            </li>
+            <li>
+              <a onClick={() => setOpen(false)} href="#services" className="block hover:text-[#0f766e]">
+                Services
+              </a>
+            </li>
+            <li>
+              <a onClick={() => setOpen(false)} href="#testimonials" className="block hover:text-[#0f766e]">
+                Reviews
+              </a>
+            </li>
           <li>
             <a href="#cta" className="hover:text-[#0f766e] transition-colors">
               Contact
@@ -59,8 +69,18 @@ export default function NavBar() {
         <div className="md:hidden border-t border-black/5 bg-white">
           <ul className="px-4 py-4 space-y-4 text-[15px] font-medium text-gray-800">
             <li>
+              <a onClick={() => setOpen(false)} href="#menu" className="block hover:text-[#0f766e]">
+                Menu
+              </a>
+            </li>
+            <li>
               <a onClick={() => setOpen(false)} href="#services" className="block hover:text-[#0f766e]">
                 Services
+              </a>
+            </li>
+            <li>
+              <a onClick={() => setOpen(false)} href="#testimonials" className="block hover:text-[#0f766e]">
+                Reviews
               </a>
             </li>
             <li>

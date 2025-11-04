@@ -64,7 +64,7 @@ export default function ServicesPreview() {
   };
 
   return (
-    <section id="services" className="mx-auto max-w-7xl px-4 py-14">
+    <section id="menu" className="mx-auto max-w-7xl px-4 py-14">
       <div className="flex items-end justify-between gap-4">
         <h2 className="font-heading text-3xl md:text-4xl text-gray-900">
           Catering Crafted for Every Celebration
