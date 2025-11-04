@@ -317,7 +317,6 @@ export async function handleIncoming({ from, userMsg }: { from: string; userMsg:
     return;
   }
 
-  // 2. Show category list
   if (state.step === "AWAITING_CATEGORY") {
     if (postback === "ACTION_SHOW_CATEGORIES") {
       await sendWhatsAppMessage(buildCategoryList(to));
@@ -341,7 +340,6 @@ export async function handleIncoming({ from, userMsg }: { from: string; userMsg:
     return;
   }
 
-  // 3. Select menu item
   if (state.step === "AWAITING_MENU") {
     if (postback.startsWith("MENU_")) {
       const itemId = postback.replace("MENU_", "");
@@ -361,7 +359,6 @@ export async function handleIncoming({ from, userMsg }: { from: string; userMsg:
     return;
   }
 
-  // 4. Quantity
   if (state.step === "AWAITING_QTY") {
     if (postback.startsWith("QTY_")) {
       const qty = parseInt(postback.replace("QTY_", ""), 10);
@@ -378,7 +375,6 @@ export async function handleIncoming({ from, userMsg }: { from: string; userMsg:
     return;
   }
 
-  // 5. Delivery
   if (state.step === "AWAITING_DELIVERY") {
      if (postback.startsWith("DELIVERY_")) {
       const t = postback.replace("DELIVERY_", "") as "pickup" | "delivery";
@@ -391,7 +387,7 @@ export async function handleIncoming({ from, userMsg }: { from: string; userMsg:
     return;
   }
 
-  // 6. Phone
+
   if (state.step === "AWAITING_PHONE") {
     const normalized = normalizePhone(userMsg);
     if (!normalized) {
@@ -409,7 +405,7 @@ export async function handleIncoming({ from, userMsg }: { from: string; userMsg:
     return;
   }
 
-  // 7. Address
+  
   if (state.step === "AWAITING_ADDRESS") {
     if (!validAddress(userMsg)) {
       await sendWhatsAppMessage(buildText(to, "Address seems short. Try again."));
@@ -421,7 +417,7 @@ export async function handleIncoming({ from, userMsg }: { from: string; userMsg:
     return;
   }
 
-  // 8. Confirm
+
   if (state.step === "AWAITING_CONFIRM") {
 if (postback === "CONFIRM_YES") {
   const summary = summarize(state.order);
@@ -458,7 +454,9 @@ if (postback === "CONFIRM_YES") {
     });
 
     const data = await res.json();
+    console.log("Payment API response:", data);
     if (data?.success) {
+      console.log("💰 Payment link created:", data.paymentLink.short_url);
       const payLink = data.paymentLink.short_url;
       await Order.findByIdAndUpdate(saved._id, { razorpayOrderId: data.orderId });
       await sendWhatsAppMessage(buildPaymentButton(to, payLink, total));
