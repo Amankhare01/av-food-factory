@@ -97,7 +97,8 @@ export async function autoReplyLead(lead: Lead) {
   if (!sid || !token) return { ok: false, skipped: true };
   const client = twilio(sid, token);
   const digits = lead.phone.replace(/\D/g, '');
-  const phoneE164 = digits.startsWith('+' ) ? digits : (digits.startswith('91') ? '+'+digits : '+91'+digits);
+  const phoneE164 = toE164(lead.phone, '91') || (digits ? `+91${digits}` : '');
+  if (!phoneE164) return { ok: false, skipped: true };
   const message = `Hi ${lead.name}, thanks for contacting AV Food Factory! We received your request` +
     `${lead.guests ? ` for ~${lead.guests} guests` : ''}. Our team will reach out shortly. — AV Food Factory`;
 
