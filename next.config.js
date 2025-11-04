@@ -27,10 +27,6 @@ const nextConfig = {
       },
     ];
   },
-
-  api: {
-    bodyParser: false, // ✅ Required for Razorpay webhook signature validation
-  },
 };
 
 module.exports = nextConfig;
