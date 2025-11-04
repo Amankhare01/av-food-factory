@@ -17,6 +17,7 @@ export async function POST(req: Request) {
       key_secret: process.env.RAZORPAY_KEY_SECRET!,
     });
 
+    // 1️⃣ Create Razorpay Order
     const razorpayOrder = await razorpay.orders.create({
       amount: amount * 100,
       currency: "INR",
@@ -24,11 +25,12 @@ export async function POST(req: Request) {
       notes: { mongoOrderId },
     });
 
+    // 2️⃣ Create Payment Link
     const paymentLink = await razorpay.paymentLink.create({
       amount: amount * 100,
       currency: "INR",
       description: `AV Food Factory Order`,
-      reference_id: razorpayOrder.id,  // ✅ proper mapping
+      reference_id: razorpayOrder.id,
       customer: { name: name || "Customer", contact: phone },
       notify: { sms: true, email: false },
       callback_url: `${process.env.NEXT_PUBLIC_BASE_URL}/payment-success`,
