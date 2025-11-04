@@ -67,6 +67,12 @@ export async function allow(ip: string, maxPerHour = 5) {
   const now = Date.now();
   const hourAgo = now - 60 * 60 * 1000;
   const arr = (buckets[ip] || []).filter((ts) => ts > hourAgo);
+  if (!Number.isFinite(maxPerHour)) {
+    arr.push(now);
+    buckets[ip] = arr;
+    await persistBuckets(buckets);
+    return { ok: true, remaining: Infinity };
+  }
   if (arr.length >= maxPerHour) return { ok: false, remaining: 0 };
   arr.push(now);
   buckets[ip] = arr;

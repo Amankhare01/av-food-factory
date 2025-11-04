@@ -51,21 +51,44 @@ export default function CTA() {
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
             />
+            <div className="flex">
+              <span className="h-12 flex items-center px-3 rounded-l-xl bg-gray-100 text-black text-sm font-medium select-none border border-r-0 border-gray-300">
+                +91
+              </span>
+            
+              <input
+                required
+                aria-label="Phone"
+                placeholder="Phone / WhatsApp"
+                className="h-12 rounded-r-xl px-4 text-black border border-gray-300"
+                value={form.phone}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (/^\d*$/.test(value)) {
+                    setForm({ ...form, phone: value });
+                  }
+                }}
+                maxLength={10}
+                inputMode="numeric"
+              />
+            </div>
+
+
             <input
               required
-              aria-label="Phone"
-              placeholder="Phone / WhatsApp"
-              className="h-12 rounded-xl px-4 text-black"
-              value={form.phone}
-              onChange={(e) => setForm({ ...form, phone: e.target.value })}
-            />
-            <input
               aria-label="Guests"
               placeholder="Guests (approx.)"
               className="h-12 rounded-xl px-4 text-black"
               value={form.guests}
-              onChange={(e) => setForm({ ...form, guests: e.target.value })}
+              onChange={(e) => {
+                const value = e.target.value;
+                if (/^\d*$/.test(value)) {
+                  setForm({ ...form, guests: value });
+                }
+              }}
+              inputMode="numeric"
             />
+
             {/* Honeypot (hidden) */}
             <input
               type="text"

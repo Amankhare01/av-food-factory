@@ -1,22 +1,40 @@
-import { NextResponse } from 'next/server';
-import { readLeads } from '@/lib/leads';
+import { NextResponse } from "next/server";
+import { Lead } from "@/models/Lead";
+import connectDB from "@/lib/mongodb";
 
 export async function GET(request: Request) {
-  const url = new URL(request.url);
-  const q = (url.searchParams.get('q') || '').toLowerCase();
-  const status = url.searchParams.get('status') || '';
-  const page = parseInt(url.searchParams.get('page') || '1');
-  const per = Math.min(100, parseInt(url.searchParams.get('per') || '25'));
+  try {
+    await connectDB();
 
-  const all = await readLeads();
-  const filtered = all.filter(l => {
-    const matchQ = !q || [l.name, l.phone, l.guests, l.source].filter(Boolean).join(' ').toLowerCase().includes(q);
-    const matchS = !status || l.status === status;
-    return matchQ && matchS;
-  }).sort((a,b) => (a.createdAt < b.createdAt ? 1 : -1));
+    const url = new URL(request.url);
+    const q = (url.searchParams.get("q") || "").toLowerCase();
+    const status = url.searchParams.get("status") || "";
+    const page = parseInt(url.searchParams.get("page") || "1");
+    const per = Math.min(100, parseInt(url.searchParams.get("per") || "25"));
 
-  const total = filtered.length;
-  const start = (page-1)*per;
-  const items = filtered.slice(start, start+per);
-  return NextResponse.json({ ok: true, total, page, per, items });
+    const filter: any = {};
+
+    // keyword search on name / phone / guests / source
+    if (q) {
+      filter.$or = [
+        { name: { $regex: q, $options: "i" } },
+        { phone: { $regex: q, $options: "i" } },
+        { guests: { $regex: q, $options: "i" } },
+        { source: { $regex: q, $options: "i" } },
+      ];
+    }
+
+    if (status) filter.status = status;
+
+    const total = await Lead.countDocuments(filter);
+
+    const items = await Lead.find(filter)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * per)
+      .limit(per);
+
+    return NextResponse.json({ ok: true, total, page, per, items });
+  } catch (err: any) {
+    return NextResponse.json({ ok: false, error: err?.message || "Unknown error" }, { status: 500 });
+  }
 }

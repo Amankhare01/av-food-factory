@@ -1,11 +1,14 @@
-import { NextResponse } from 'next/server';
-import { readLeads, writeLeads } from '@/lib/leads';
+import { NextResponse } from "next/server";
+import { Lead } from "@/models/Lead";
+import connectDB from "@/lib/mongodb";
 
 export async function POST(request: Request) {
+  await connectDB();
   const { id } = await request.json();
-  if (!id) return NextResponse.json({ ok: false, error: 'Missing id' }, { status: 400 });
-  const list = await readLeads();
-  const next = list.filter(l => l.id !== id);
-  await writeLeads(next);
-  return NextResponse.json({ ok: true });
+  if (!id) return NextResponse.json({ ok:false, error:"Missing id" }, { status:400 });
+
+// DELETE
+await Lead.deleteOne({ id });
+
+  return NextResponse.json({ ok:true });
 }
