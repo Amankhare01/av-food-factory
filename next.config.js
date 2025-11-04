@@ -29,7 +29,7 @@ const nextConfig = {
   },
 
   api: {
-    bodyParser: false, // ✅ required for Razorpay raw signature verification
+    bodyParser: false, // ✅ Required for Razorpay webhook signature validation
   },
 };
 
