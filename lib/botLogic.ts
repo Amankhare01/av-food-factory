@@ -425,24 +425,13 @@ export async function handleIncoming({ from, userMsg }: { from: string; userMsg:
   if (state.step === "AWAITING_CONFIRM") {
 if (postback === "CONFIRM_YES") {
   const summary = summarize(state.order);
+  await sendWhatsAppMessage(buildText(to, `🎉 *Order Confirmed!*\n\n${summary}\n\nPlease proceed to payment below 👇`));
 
-  // 🟢 Step 1: Send order summary confirmation
-  await sendWhatsAppMessage(
-    buildText(
-      to,
-      `🎉 *Order Confirmed!*\n\n${summary}\n\nPlease proceed to payment below 👇`
-    )
-  );
-
-  // 🧮 Step 2: Calculate total
   const items = MENU[state.order.categoryId!] || [];
   const m = items.find((x) => x.id === state.order.itemId);
   const total = (state.order.qty || 0) * (m?.price || 0);
 
-  let payLink: " ";
-
   try {
-    // 🟢 Step 3: Connect to DB and save the order first
     await connectDB();
     const saved = await Order.create({
       from,
@@ -456,14 +445,7 @@ if (postback === "CONFIRM_YES") {
       paid: false,
     });
 
-    console.log("🗄️ Order saved:", saved._id);
-
-    // 🟢 Step 4: Create Razorpay Payment Link
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
-    if (!baseUrl) {
-      throw new Error("NEXT_PUBLIC_BASE_URL is not defined in environment");
-    }
-
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL!;
     const res = await fetch(`${baseUrl}/api/payment`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -471,58 +453,30 @@ if (postback === "CONFIRM_YES") {
         amount: total,
         name: state.order.itemName,
         phone: state.order.phone,
-        mongoOrderId: saved._id, // 🧩 use real order ID
+        mongoOrderId: saved._id,
       }),
     });
 
     const data = await res.json();
-
     if (data?.success) {
-      payLink = data.paymentLink.short_url;
-
-      // optional: store Razorpay order id if present
-      if (data.orderId) {
-        await Order.findByIdAndUpdate(saved._id, { razorpayOrderId: data.orderId });
-      }
-
-      // 🟢 Step 5: Send interactive Pay Now button
+      const payLink = data.paymentLink.short_url;
+      await Order.findByIdAndUpdate(saved._id, { razorpayOrderId: data.orderId });
       await sendWhatsAppMessage(buildPaymentButton(to, payLink, total));
     } else {
-      console.error("⚠️ Failed to create Razorpay link:", data);
-      await sendWhatsAppMessage(
-        buildText(to, "⚠️ Error creating payment link. Please try again later.")
-      );
+      await sendWhatsAppMessage(buildText(to, "⚠️ Error creating payment link. Please try again later."));
     }
   } catch (err) {
     console.error("❌ Payment or DB error:", err);
-    await sendWhatsAppMessage(
-      buildText(to, "⚠️ Something went wrong. Please try again later.")
-    );
+    await sendWhatsAppMessage(buildText(to, "⚠️ Something went wrong. Please try again later."));
   }
 
-  // 🟢 Step 6: Notify Admin
-  try {
-    const adminMsg =
-      `📩 *New Order Received*\n` +
-      `From: ${from}\n` +
-      `Category: ${state.order.categoryName}\n` +
-      `Item: ${state.order.itemName}\n` +
-      `Qty: ${state.order.qty}\n` +
-      `Delivery: ${state.order.delivery}\n` +
-      `Phone: ${state.order.phone}\n` +
-      `Address: ${state.order.address || "-"}\n` +
-      `Total: ₹${total}\n` +
-      `\nTime: ${new Date().toLocaleString("en-IN")}`;
-
-    await sendWhatsAppMessage(buildText(ADMIN_PHONE, adminMsg));
-  } catch (err) {
-    console.error("⚠️ Failed to notify admin:", err);
-  }
-
-  // 🟢 Step 7: Reset session
+  // Notify admin
+  const adminMsg = `📩 *New Order Received*\nCustomer: ${state.order.phone}\nItem: ${state.order.itemName}\nQty: ${state.order.qty}\nTotal: ₹${total}\nTime: ${new Date().toLocaleString("en-IN")}`;
+  await sendWhatsAppMessage(buildText(ADMIN_PHONE, adminMsg));
   userStates.set(from, { step: "INIT", order: {} });
   return;
 }
+
 
 
 
