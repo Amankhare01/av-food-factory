@@ -22,90 +22,99 @@ export async function notifyEmail(lead: Lead) {
   if (!host || !port || !user || !pass || !to || !from) return { ok: false, skipped: true };
   const transport = nodemailer.createTransport({ host, port, secure: port === 465, auth: { user, pass } });
   const subject = `New Lead • ${lead.name} (${lead.phone})`;
-  const html = `
-    <h2>New Lead</h2>
-    <ul>
-      <li><b>ID:</b> ${lead.id}</li>
-      <li><b>Name:</b> ${lead.name}</li>
-      <li><b>Phone:</b> ${lead.phone}</li>
-      <li><b>Guests:</b> ${lead.guests || '-'}</li>
-      <li><b>Source:</b> ${lead.source || '-'}</li>
-      <li><b>When:</b> ${new Date(lead.createdAt).toLocaleString()}</li>
-    </ul>
-  `;
+const html = `
+ <div style="font-family:Inter,Arial,sans-serif;background:#f0fdfa;padding:32px;">
+   <div style="max-width:520px;margin:0 auto;background:#ffffff;border-radius:14px;border:1px solid #e5e7eb;overflow:hidden;">
+
+     <div style="background:#0f766e;padding:22px 32px;">
+       <h2 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;">New Lead Received</h2>
+     </div>
+
+     <!-- THIS padding fixes spacing issue -->
+     <div style="padding:24px 32px 32px;">
+        <div style="display:flex;gap:6px;margin-bottom:12px;">
+          <span style="color:#6b7280;">ID:</span>
+          <span style="font-weight:600;color:#0f766e;">${lead.id}</span>
+        </div>
+
+        <div style="display:flex;gap:6px;margin-bottom:12px;">
+          <span style="color:#6b7280;">Name:</span>
+          <span style="font-weight:600;color:#111827;">${lead.name}</span>
+        </div>
+
+        <div style="display:flex;gap:6px;margin-bottom:12px;">
+          <span style="color:#6b7280;">Phone:</span>
+          <span style="font-weight:600;color:#111827;">${lead.phone}</span>
+        </div>
+
+        <div style="display:flex;gap:6px;margin-bottom:12px;">
+          <span style="color:#6b7280;">Guests:</span>
+          <span style="font-weight:600;color:#111827;">${lead.guests || '-'}</span>
+        </div>
+
+        <div style="display:flex;gap:6px;margin-bottom:12px;">
+          <span style="color:#6b7280;">Source:</span>
+          <span style="font-weight:600;color:#111827;">${lead.source || '-'}</span>
+        </div>
+
+        <div style="display:flex;gap:6px;margin-bottom:12px;">
+          <span style="color:#6b7280;">Created:</span>
+          <span style="font-weight:600;color:#111827;">${new Date(lead.createdAt).toLocaleString()}</span>
+        </div>
+     </div>
+
+   </div>
+ </div>
+`;
+
   await transport.sendMail({ from, to, subject, html });
   return { ok: true };
 }
 
 export async function notifyWhatsApp(lead: Lead) {
-  const sid   = process.env.TWILIO_SID;
+  const sid = process.env.TWILIO_SID;
   const token = process.env.TWILIO_AUTH_TOKEN;
-  let from    = process.env.TWILIO_WHATSAPP_FROM;     // e.g. "+14155238886" or "whatsapp:+14155238886"
-  let to      = process.env.NOTIFY_WHATSAPP_TO;       // your own number for notifications
-
+  const from = process.env.TWILIO_WHATSAPP_FROM;
+  const to = process.env.NOTIFY_WHATSAPP_TO;
   if (!sid || !token || !from || !to) return { ok: false, skipped: true };
-
-  // Normalize numbers
   const client = twilio(sid, token);
-  from = asWhatsApp(toE164(from)!);
-  to   = asWhatsApp(toE164(to)!);
+const body = `✨ *New Lead Received* ✨
 
-  const body =
-    `New Lead • ${lead.name}\n` +
-    `Phone: ${lead.phone}\n` +
-    `Guests: ${lead.guests || '-'}\n` +
-    `Source: ${lead.source || '-'}\n` +
-    `When: ${new Date(lead.createdAt).toLocaleString()}`;
+*Name:* ${lead.name}
+*Phone:* ${lead.phone}
+*Guests:* ${lead.guests || '-'}
+*Source:* ${lead.source || '-'}
+*Time:* ${new Date(lead.createdAt).toLocaleString()}
 
-  try {
-    await client.messages.create({ from, to, body });
-    return { ok: true };
-  } catch (e:any) {
-    console.error('notifyWhatsApp failed:', e?.code, e?.message, e?.moreInfo);
-    return { ok: false, error: e?.message };
-  }
+🧩 Please take action now.`;
+  await client.messages.create({ from, to, body });
+  return { ok: true };
 }
 
-
 export async function autoReplyLead(lead: Lead) {
-  const sid   = process.env.TWILIO_SID;
+  const sid = process.env.TWILIO_SID;
   const token = process.env.TWILIO_AUTH_TOKEN;
   if (!sid || !token) return { ok: false, skipped: true };
-
   const client = twilio(sid, token);
+  const digits = lead.phone.replace(/\D/g, '');
+  const phoneE164 = toE164(lead.phone, '91') || (digits ? `+91${digits}` : '');
+  if (!phoneE164) return { ok: false, skipped: true };
+  const message = `Hi ${lead.name}, thanks for contacting AV Food Factory! We received your request` +
+    `${lead.guests ? ` for ~${lead.guests} guests` : ''}. Our team will reach out shortly. — AV Food Factory`;
 
-  const phoneE164 = toE164(lead.phone, '91');
-  if (!phoneE164) return { ok: false, error: 'Invalid phone' };
-
-  const message =
-    `Hi ${lead.name}, thanks for contacting AV Food Factory!` +
-    `${lead.guests ? ` We received your request for ~${lead.guests} guests.` : ''}` +
-    ` Our team will reach out shortly. — AV Food Factory`;
-
-  // Prefer WhatsApp if configured
   const waFrom = process.env.TWILIO_WHATSAPP_FROM;
   if (waFrom) {
     try {
-      await client.messages.create({
-        from: asWhatsApp(toE164(waFrom)!),
-        to: asWhatsApp(phoneE164),
-        body: message, // NOTE: Requires session (user wrote first) OR a pre-approved template
-      });
-      return { ok: true, via: 'whatsapp' };
-    } catch (e:any) {
-      console.error('autoReplyLead (WA) failed:', e?.code, e?.message, e?.moreInfo);
-    }
+      await client.messages.create({ from: waFrom, to: 'whatsapp:' + phoneE164.replace(/^\+/, '+'), body: message });
+      return { ok: true };
+    } catch {}
   }
-
-  // Fallback to SMS if configured
-  const smsFrom = process.env.TWILIO_SMS_FROM; // must be a Twilio SMS-capable number
+  const smsFrom = process.env.TWILIO_SMS_FROM;
   if (smsFrom) {
     try {
-      await client.messages.create({ from: toE164(smsFrom)!, to: phoneE164, body: message });
-      return { ok: true, via: 'sms' };
-    } catch (e:any) {
-      console.error('autoReplyLead (SMS) failed:', e?.code, e?.message, e?.moreInfo);
-    }
+      await client.messages.create({ from: smsFrom, to: phoneE164, body: message });
+      return { ok: true };
+    } catch {}
   }
   return { ok: false, skipped: true };
 }
