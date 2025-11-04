@@ -7,7 +7,6 @@ export async function POST(request: Request) {
   const { id } = await request.json();
   if (!id) return NextResponse.json({ ok:false, error:"Missing id" }, { status:400 });
 
-// DELETE
 await Lead.deleteOne({ id });
 
   return NextResponse.json({ ok:true });
