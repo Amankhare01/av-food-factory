@@ -12,6 +12,16 @@ export default function AdminTable() {
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(false);
 
+
+function statusColor(s: string) {
+  switch (s) {
+    case 'new': return 'bg-green-300 text-black border-black';
+    case 'contacted': return 'bg-blue-300 text-black border-black';
+    case 'closed': return 'bg-yellow-300 text-black border-black';
+    default: return 'bg-slate-100 text-slate-900 border-black';
+  }
+}
+
   async function load() {
     setLoading(true);
     const res = await fetch(`/api/admin/leads/list?q=${encodeURIComponent(q)}&status=${encodeURIComponent(status)}`, {
@@ -82,15 +92,16 @@ export default function AdminTable() {
                 <td className="p-3">{l.guests || '-'}</td>
                 <td className="p-3">
                   <select
-                    title='Details'
-                    value={l.status || 'new'}
-                    onChange={e => update(l._id, { status: e.target.value })}
-                    className="rounded border px-2 py-1"
-                  >
-                    <option value="new">new</option>
-                    <option value="contacted">contacted</option>
-                    <option value="closed">closed</option>
-                  </select>
+  title='Details'
+  value={l.status || 'new'}
+  onChange={e => update(l._id, { status: e.target.value })}
+  className={`rounded border px-2 py-1 ${statusColor(l.status || 'new')}`}
+>
+  <option value="new">new</option>
+  <option value="contacted">contacted</option>
+  <option value="closed">closed</option>
+</select>
+
                 </td>
                 <td className="p-3">{l.source || '-'}</td>
                 <td className="p-3">
