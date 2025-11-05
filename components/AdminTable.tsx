@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 
 type Lead = {
-  id: string; name: string; phone: string; guests?: string; status?: string;
+  _id: string; name: string; phone: string; guests?: string; status?: string;
   source?: string; createdAt: string; notes?: string;
 };
 
@@ -14,7 +14,9 @@ export default function AdminTable() {
 
   async function load() {
     setLoading(true);
-    const res = await fetch(`/api/admin/leads/list?q=${encodeURIComponent(q)}&status=${encodeURIComponent(status)}`);
+    const res = await fetch(`/api/admin/leads/list?q=${encodeURIComponent(q)}&status=${encodeURIComponent(status)}`, {
+      cache: 'no-store'
+    });
     const data = await res.json();
     setItems(data.items || []);
     setLoading(false);
@@ -26,9 +28,10 @@ export default function AdminTable() {
     await fetch('/api/admin/leads/update', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      cache: 'no-store',
       body: JSON.stringify({ id, ...next })
     });
-    load();
+    await load();
   }
 
   async function del(id: string) {
@@ -36,9 +39,10 @@ export default function AdminTable() {
     await fetch('/api/admin/leads/delete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      cache: 'no-store',
       body: JSON.stringify({ id })
     });
-    load();
+    await load();
   }
 
   return (
@@ -71,16 +75,16 @@ export default function AdminTable() {
           </thead>
           <tbody>
             {items.map(l => (
-              <tr key={l.id} className="border-b hover:bg-slate-50/50">
+              <tr key={l._id} className="border-b hover:bg-slate-50/50">
                 <td className="p-3 whitespace-nowrap">{new Date(l.createdAt).toLocaleString()}</td>
                 <td className="p-3">{l.name}</td>
                 <td className="p-3">{l.phone}</td>
                 <td className="p-3">{l.guests || '-'}</td>
                 <td className="p-3">
                   <select
-                  title='Details'
+                    title='Details'
                     value={l.status || 'new'}
-                    onChange={e => update(l.id, { status: e.target.value })}
+                    onChange={e => update(l._id, { status: e.target.value })}
                     className="rounded border px-2 py-1"
                   >
                     <option value="new">new</option>
@@ -92,13 +96,13 @@ export default function AdminTable() {
                 <td className="p-3">
                   <input
                     defaultValue={l.notes || ''}
-                    onBlur={e => update(l.id, { notes: e.target.value })}
+                    onBlur={e => update(l._id, { notes: e.target.value })}
                     className="w-56 rounded border px-2 py-1"
                     placeholder="Add note…"
                   />
                 </td>
                 <td className="p-3">
-                  <button onClick={() => del(l.id)} className="text-red-600">Delete</button>
+                  <button onClick={() => del(l._id)} className="text-red-600">Delete</button>
                 </td>
               </tr>
             ))}
