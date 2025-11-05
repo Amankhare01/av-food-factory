@@ -74,11 +74,14 @@ const html = `
 export async function notifyWhatsApp(lead: Lead) {
   const sid = process.env.TWILIO_SID;
   const token = process.env.TWILIO_AUTH_TOKEN;
-  const from = process.env.TWILIO_WHATSAPP_FROM;
-  const to = process.env.NOTIFY_WHATSAPP_TO;
+  const from = process.env.TWILIO_WHATSAPP_FROM;   // raw number without whatsapp: prefix is fine in env
+  const to   = process.env.NOTIFY_WHATSAPP_TO;
+
   if (!sid || !token || !from || !to) return { ok: false, skipped: true };
+
   const client = twilio(sid, token);
-const body = `✨ *New Lead Received* ✨
+
+  const body = `✨ *New Lead Received* ✨
 
 *Name:* ${lead.name}
 *Phone:* ${lead.phone}
@@ -86,8 +89,14 @@ const body = `✨ *New Lead Received* ✨
 *Source:* ${lead.source || '-'}
 *Time:* ${new Date(lead.createdAt).toLocaleString()}
 
-🧩 Please take action now.`;
-  await client.messages.create({ from, to, body });
+🧩 Please take action now.`
+
+  await client.messages.create({
+    from: `${from}`,
+    to:   `${to}`,
+    body
+  });
+
   return { ok: true };
 }
 
