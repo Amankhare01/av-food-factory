@@ -14,15 +14,10 @@ export async function POST(req: Request) {
     const signature = req.headers.get("x-razorpay-signature");
     const rawBody = await req.text();
 
-    if (!signature) {
-      console.error("❌ Missing signature header");
-      return NextResponse.json({ success: false }, { status: 400 });
-    }
-
-    // ✅ Verify Signature
+    // Verify webhook signature
     const expected = crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
     if (expected !== signature) {
-      console.error("❌ Invalid signature");
+      console.error("❌ Invalid webhook signature");
       return NextResponse.json({ success: false }, { status: 400 });
     }
 
@@ -30,51 +25,50 @@ export async function POST(req: Request) {
     const event = payload.event;
     const entity = payload.payload?.payment?.entity || payload.payload?.payment_link?.entity;
 
+    if (!entity) {
+      console.error("❌ Missing payment entity");
+      return NextResponse.json({ success: false }, { status: 400 });
+    }
+
     await connectDB();
 
-    if (event === "payment.captured" || entity?.status === "captured" || entity?.status === "paid") {
-      const mongoOrderId =
-        entity?.notes?.mongoOrderId ||
-        entity?.reference_id ||
-        entity?.order_id?.split("_")[1]; // fallback
+    // ✅ Handle successful payments
+    if (event === "payment.captured" || entity.status === "captured" || entity.status === "paid") {
+      const mongoOrderId = entity.notes?.mongoOrderId || entity.reference_id;
+      const paymentId = entity.id;
 
       const order = await Order.findByIdAndUpdate(
         mongoOrderId,
-        {
-          paid: true,
-          status: "paid",
-          paymentId: entity.id,
-        },
+        { paid: true, status: "paid", paymentId },
         { new: true }
       );
 
       if (order) {
+        // WhatsApp message to customer
         await sendWhatsAppMessage({
           messaging_product: "whatsapp",
           to: order.phone!,
           type: "text",
           text: {
-            body: `✅ *Payment Received!*\nYour order for *${order.itemName}* (₹${order.total}) is confirmed and being prepared. 🍽️`,
+            body: `✅ *Payment Received!*\nYour order for *${order.itemName}* (₹${order.total}) is confirmed and being prepared.\n🧾 Payment ID: ${paymentId}\n\nThank you for ordering from *AV Food Factory*! 🍽️`,
           },
         });
 
+        // WhatsApp message to admin
         await sendWhatsAppMessage({
           messaging_product: "whatsapp",
           to: ADMIN_PHONE,
           type: "text",
           text: {
-            body: `📦 *Paid Order Confirmed*\nCustomer: ${order.phone}\nItem: ${order.itemName}\nQty: ${order.qty}\nAmount: ₹${order.total}\nPayment ID: ${entity.id}`,
+            body: `📦 *Paid Order Confirmed*\nCustomer: ${order.phone}\nItem: ${order.itemName}\nQty: ${order.qty}\nTotal: ₹${order.total}\nPayment ID: ${paymentId}\nTime: ${new Date().toLocaleString("en-IN")}`,
           },
         });
       }
-    } else if (event === "payment.failed" || entity?.status === "failed") {
-      const mongoOrderId = entity?.notes?.mongoOrderId || entity?.reference_id;
-      await Order.findByIdAndUpdate(mongoOrderId, { status: "failed" });
     }
 
     return NextResponse.json({ success: true });
   } catch (err: any) {
-    console.error("❌ Webhook Error:", err);
+    console.error("Webhook error:", err);
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
 }
