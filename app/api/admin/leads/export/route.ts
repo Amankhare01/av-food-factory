@@ -1,6 +1,6 @@
 import { readLeads } from "@/lib/leads";
 
-
+//get
 export async function GET() {
   const list = await readLeads();
 
