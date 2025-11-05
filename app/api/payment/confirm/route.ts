@@ -1,4 +1,3 @@
-// app/api/payment/confirm/route.ts
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import { Order } from "@/models/Order";
@@ -10,49 +9,56 @@ export async function POST(req: Request) {
   try {
     const { referenceId, paymentId } = await req.json();
     if (!referenceId || !paymentId) {
-      return NextResponse.json({ success: false, error: "Missing referenceId or paymentId" }, { status: 400 });
+      console.error("Missing referenceId/paymentId:", referenceId, paymentId);
+      return NextResponse.json({ success: false, error: "Missing parameters" }, { status: 400 });
     }
 
     await connectDB();
     const order = await Order.findById(referenceId);
-
     if (!order) {
+      console.error("Order not found:", referenceId);
       return NextResponse.json({ success: false, error: "Order not found" }, { status: 404 });
     }
 
-    // Already paid? skip duplicate notifications
     if (order.paid) {
-      return NextResponse.json({ success: true, message: "Already marked paid" });
+      console.log("Already marked paid:", referenceId);
+      return NextResponse.json({ success: true });
     }
 
-    // ✅ Update DB
     order.paid = true;
     order.status = "paid";
     order.paymentId = paymentId;
     await order.save();
 
-    // ✅ WhatsApp Notifications
+    const msgUser = `✅ *Payment Received!*
+Your order for *${order.itemName}* (₹${order.total}) is confirmed and being prepared. 🍽️
+Payment ID: ${paymentId}`;
+
+    const msgAdmin = `📦 *Paid Order Confirmed*
+Customer: ${order.phone}
+Item: ${order.itemName}
+Qty: ${order.qty}
+Amount: ₹${order.total}
+Payment ID: ${paymentId}`;
+
     await sendWhatsAppMessage({
       messaging_product: "whatsapp",
       to: order.phone!,
       type: "text",
-      text: {
-        body: `✅ *Payment Received!* \nYour order for *${order.itemName}* (₹${order.total}) is confirmed and being prepared. 🍽️\nPayment ID: ${paymentId}`,
-      },
+      text: { body: msgUser },
     });
 
     await sendWhatsAppMessage({
       messaging_product: "whatsapp",
       to: ADMIN_PHONE,
       type: "text",
-      text: {
-        body: `📦 *Paid Order Confirmed*\nCustomer: ${order.phone}\nItem: ${order.itemName}\nQty: ${order.qty}\nAmount: ₹${order.total}\nPayment ID: ${paymentId}`,
-      },
+      text: { body: msgAdmin },
     });
 
-    return NextResponse.json({ success: true, message: "Payment confirmed and WhatsApp sent" });
+    console.log("✅ Payment confirmed + WhatsApp sent");
+    return NextResponse.json({ success: true });
   } catch (err: any) {
-    console.error("❌ /payment/confirm error:", err);
+    console.error("❌ Confirm route error:", err);
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
 }

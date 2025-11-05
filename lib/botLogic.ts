@@ -425,7 +425,12 @@ export async function handleIncoming({ from, userMsg }: { from: string; userMsg:
   if (state.step === "AWAITING_CONFIRM") {
 if (postback === "CONFIRM_YES") {
   const summary = summarize(state.order);
-  await sendWhatsAppMessage(buildText(to, `🎉 *Order Confirmed!*\n\n${summary}\n\nPlease proceed to payment below 👇`));
+  await sendWhatsAppMessage(
+    buildText(
+      to,
+      `🎉 *Order Confirmed!*\n\n${summary}\n\nPlease proceed to payment below 👇`
+    )
+  );
 
   const items = MENU[state.order.categoryId!] || [];
   const m = items.find((x) => x.id === state.order.itemId);
@@ -443,6 +448,7 @@ if (postback === "CONFIRM_YES") {
       address: state.order.address,
       total,
       paid: false,
+      status: "created",
     });
 
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL!;
@@ -453,31 +459,53 @@ if (postback === "CONFIRM_YES") {
         amount: total,
         name: state.order.itemName,
         phone: state.order.phone,
-        mongoOrderId: saved._id,
+        mongoOrderId: saved._id, // 👈 This connects Razorpay payment link to MongoDB order
       }),
     });
 
     const data = await res.json();
     console.log("Payment API response:", data);
+
     if (data?.success) {
-      console.log("💰 Payment link created:", data.paymentLink.short_url);
       const payLink = data.paymentLink.short_url;
-      await Order.findByIdAndUpdate(saved._id, { razorpayOrderId: data.orderId });
+
+      // ✅ Save payment identifiers for future updates
+      await Order.findByIdAndUpdate(saved._id, {
+        razorpayOrderId: data.orderId,
+        paymentLinkId: data.paymentLink.id,
+        paymentLinkShortUrl: data.paymentLink.short_url,
+        status: "pending",
+      });
+
+      // ✅ Send payment button + friendly reminder
       await sendWhatsAppMessage(buildPaymentButton(to, payLink, total));
+      await sendWhatsAppMessage(
+        buildText(
+          to,
+          "💡 Please complete your payment to confirm your order. You’ll get a receipt instantly after payment."
+        )
+      );
     } else {
-      await sendWhatsAppMessage(buildText(to, "⚠️ Error creating payment link. Please try again later."));
+      await sendWhatsAppMessage(
+        buildText(to, "⚠️ Error creating payment link. Please try again later.")
+      );
     }
   } catch (err) {
     console.error("❌ Payment or DB error:", err);
-    await sendWhatsAppMessage(buildText(to, "⚠️ Something went wrong. Please try again later."));
+    await sendWhatsAppMessage(
+      buildText(to, "⚠️ Something went wrong. Please try again later.")
+    );
   }
 
-  // Notify admin
+  // 🧾 Notify admin
   const adminMsg = `📩 *New Order Received*\nCustomer: ${state.order.phone}\nItem: ${state.order.itemName}\nQty: ${state.order.qty}\nTotal: ₹${total}\nTime: ${new Date().toLocaleString("en-IN")}`;
   await sendWhatsAppMessage(buildText(ADMIN_PHONE, adminMsg));
+
+  // Reset conversation state
   userStates.set(from, { step: "INIT", order: {} });
   return;
 }
+
 
 
 
