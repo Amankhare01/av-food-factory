@@ -4,7 +4,7 @@ import connectDB from "@/lib/mongodb";
 import { Order } from "@/models/Order";
 import { sendWhatsAppMessage } from "@/lib/botLogic";
 
-export const runtime = "nodejs"; // ✅ ensures raw body stream
+export const runtime = "nodejs";
 
 const ADMIN_PHONE = (process.env.ADMIN_WHATSAPP_NUMBER || "916306512288").replace("+", "");
 
@@ -15,37 +15,36 @@ export async function POST(req: Request) {
     const rawBody = await req.text();
 
     if (!signature) {
-      console.error("❌ Missing x-razorpay-signature header");
+      console.error("❌ Missing signature header");
       return NextResponse.json({ success: false }, { status: 400 });
     }
 
     // ✅ Verify Signature
-    const expected = crypto
-      .createHmac("sha256", secret)
-      .update(rawBody)
-      .digest("hex");
-
+    const expected = crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
     if (expected !== signature) {
-      console.error("❌ Invalid Razorpay webhook signature");
+      console.error("❌ Invalid signature");
       return NextResponse.json({ success: false }, { status: 400 });
     }
 
-    console.log("✅ Webhook signature verified successfully");
-
     const payload = JSON.parse(rawBody);
     const event = payload.event;
-    const payment = payload.payload?.payment?.entity;
-    if (!payment) return NextResponse.json({ success: false }, { status: 400 });
-
-    const { id: paymentId, order_id: razorpayOrderId, amount, status } = payment;
-    console.log(`📩 Webhook Event: ${event}, Payment: ${paymentId}, Status: ${status}`);
+    const entity = payload.payload?.payment?.entity || payload.payload?.payment_link?.entity;
 
     await connectDB();
 
-    if (event === "payment.captured" || status === "captured") {
-      const order = await Order.findOneAndUpdate(
-        { razorpayOrderId },
-        { paid: true, paymentId },
+    if (event === "payment.captured" || entity?.status === "captured" || entity?.status === "paid") {
+      const mongoOrderId =
+        entity?.notes?.mongoOrderId ||
+        entity?.reference_id ||
+        entity?.order_id?.split("_")[1]; // fallback
+
+      const order = await Order.findByIdAndUpdate(
+        mongoOrderId,
+        {
+          paid: true,
+          status: "paid",
+          paymentId: entity.id,
+        },
         { new: true }
       );
 
@@ -55,7 +54,7 @@ export async function POST(req: Request) {
           to: order.phone!,
           type: "text",
           text: {
-            body: `✅ *Payment Received!* \nYour order for *${order.itemName}* (₹${order.total}) is confirmed and being prepared. 🍽️`,
+            body: `✅ *Payment Received!*\nYour order for *${order.itemName}* (₹${order.total}) is confirmed and being prepared. 🍽️`,
           },
         });
 
@@ -64,29 +63,13 @@ export async function POST(req: Request) {
           to: ADMIN_PHONE,
           type: "text",
           text: {
-            body:
-              `📦 *Paid Order Confirmed*\n` +
-              `Customer: ${order.phone}\n` +
-              `Item: ${order.itemName}\n` +
-              `Qty: ${order.qty}\n` +
-              `Amount: ₹${order.total}\n` +
-              `Payment ID: ${paymentId}`,
+            body: `📦 *Paid Order Confirmed*\nCustomer: ${order.phone}\nItem: ${order.itemName}\nQty: ${order.qty}\nAmount: ₹${order.total}\nPayment ID: ${entity.id}`,
           },
         });
       }
-    } else if (event === "payment.failed" || status === "failed") {
-      const { error_description } = payment;
-      const order = await Order.findOne({ razorpayOrderId });
-      if (order) {
-        await sendWhatsAppMessage({
-          messaging_product: "whatsapp",
-          to: order.phone!,
-          type: "text",
-          text: {
-            body: `❌ *Payment Failed*\nWe couldn’t process your payment for *${order.itemName}* (₹${order.total}).\nReason: ${error_description || "Unknown"}.`,
-          },
-        });
-      }
+    } else if (event === "payment.failed" || entity?.status === "failed") {
+      const mongoOrderId = entity?.notes?.mongoOrderId || entity?.reference_id;
+      await Order.findByIdAndUpdate(mongoOrderId, { status: "failed" });
     }
 
     return NextResponse.json({ success: true });
