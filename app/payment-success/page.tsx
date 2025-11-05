@@ -1,8 +1,8 @@
 "use client";
 import { useSearchParams } from "next/navigation";
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 
-export default function DebugPaymentPage() {
+function DebugPaymentPageContent() {
   const params = useSearchParams();
 
   useEffect(() => {
@@ -14,5 +14,13 @@ export default function DebugPaymentPage() {
       <h1 className="text-xl font-bold">Debugging Payment Redirect</h1>
       <p>Open your browser console after a payment to see the parameters Razorpay sends.</p>
     </div>
+  );
+}
+
+export default function DebugPaymentPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center">Loading payment status...</div>}>
+      <DebugPaymentPageContent />
+    </Suspense>
   );
 }
