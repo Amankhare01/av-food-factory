@@ -1,3 +1,4 @@
+// app/api/payment/route.ts
 import { NextResponse } from "next/server";
 import Razorpay from "razorpay";
 import connectDB from "@/lib/mongodb";
@@ -6,11 +7,9 @@ import { Order } from "@/models/Order";
 export async function POST(req: Request) {
   try {
     const { amount, name, phone, mongoOrderId } = await req.json();
+
     if (!amount || !phone || !mongoOrderId) {
-      return NextResponse.json(
-        { success: false, error: "Missing required fields" },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, error: "Missing fields" }, { status: 400 });
     }
 
     const razorpay = new Razorpay({
@@ -20,7 +19,7 @@ export async function POST(req: Request) {
 
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL!;
 
-    // 1️⃣ Create Razorpay Order (for tracking)
+    // 1️⃣ Create Razorpay order (for tracking)
     const razorpayOrder = await razorpay.orders.create({
       amount: amount * 100,
       currency: "INR",
@@ -28,20 +27,19 @@ export async function POST(req: Request) {
       notes: { mongoOrderId },
     });
 
-    // 2️⃣ Create Payment Link (this is what user actually pays through)
+    // 2️⃣ Create Payment Link
     const paymentLink = await razorpay.paymentLink.create({
       amount: amount * 100,
       currency: "INR",
       description: `AV Food Factory Order`,
-      customer: { name: name || "Customer", contact: phone },
-      notify: { sms: true, email: false },
-      reference_id: mongoOrderId, // ✅ store your Mongo order id for callback/webhook
+      reference_id: mongoOrderId, // 🔗 tie to your Mongo order
       notes: { mongoOrderId, razorpayOrderId: razorpayOrder.id },
-      callback_url: `${baseUrl}/payment-success`,
-      callback_method: "get",
+      customer: { name, contact: phone },
+      notify: { sms: true, email: false },
+      // ❌ Remove callback_url completely
     });
 
-    // 3️⃣ Save in MongoDB
+    // 3️⃣ Save order details
     await connectDB();
     await Order.findByIdAndUpdate(mongoOrderId, {
       razorpayOrderId: razorpayOrder.id,
@@ -56,9 +54,9 @@ export async function POST(req: Request) {
       paymentLink,
     });
   } catch (err: any) {
-    console.error("❌ Razorpay Error:", err);
+    console.error("Payment creation error:", err);
     return NextResponse.json(
-      { success: false, error: err.message || "Payment creation failed" },
+      { success: false, error: err.message || "Server error" },
       { status: 500 }
     );
   }
