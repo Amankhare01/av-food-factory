@@ -12,11 +12,12 @@ const OrderSchema = new Schema(
     total: Number,
     paid: { type: Boolean, default: false },
     paymentId: String,
-    razorpayOrderId: String, 
+    razorpayOrderId: String,
+    paymentLinkId: String,
+    paymentLinkShortUrl: String,
+    status: { type: String, default: "created" }, // created|pending|paid|failed
   },
   { timestamps: true }
 );
-
-
 
 export const Order = models.Order || model("Order", OrderSchema);
