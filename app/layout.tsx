@@ -6,10 +6,36 @@ import Footer from '@/components/Footer';
 import WhatsAppButton from '@/components/WhatsAppButton';
 
 export const metadata: Metadata = {
-  title: 'AV Food Factory — Lucknow Catering | Nawabi Dastarkhwan',
-  description: 'Premium Lucknow catering with a Nawabi touch. Weddings, corporate, and private events.',
-  icons: { icon: '/favicon.ico' }
+  metadataBase: new URL("https://www.avfoodfactory.com"),
+  title: {
+    default: "AV Food Factory — Premium Catering in Lucknow",
+    template: "%s | AV Food Factory Lucknow"
+  },
+  description:
+    "Premium catering service in Lucknow, Uttar Pradesh. Nawabi Dastarkhwan, wedding catering, corporate catering, engagement & birthday party catering. Pure taste, authentic Awadhi, live counters, custom menu & full service event catering.",
+  keywords: [
+    "Lucknow catering",
+    "catering service Lucknow",
+    "Nawabi catering",
+    "Awadhi catering",
+    "wedding catering Lucknow",
+    "corporate catering Lucknow",
+    "party catering Lucknow",
+    "best catering in Lucknow",
+    "AV Food Factory",
+    "Nawabi Dastarkhwan"
+  ],
+  openGraph: {
+    type: "website",
+    url: "https://www.avfoodfactory.com/",
+    siteName: "AV Food Factory"
+  },
+  alternates: {
+    canonical: "https://www.avfoodfactory.com/"
+  },
+  icons: { icon: "/og.jpg" }
 };
+
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
