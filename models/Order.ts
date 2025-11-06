@@ -13,8 +13,6 @@ const OrderSchema = new Schema(
     paid: { type: Boolean, default: false },
     paymentId: String,
     razorpayOrderId: String,
-    paymentLinkId: String,
-    paymentLinkShortUrl: String,
     status: { type: String, default: "created" }, // created|pending|paid|failed
   },
   { timestamps: true }

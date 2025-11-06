@@ -439,7 +439,7 @@ if (postback === "CONFIRM_YES") {
   try {
     await connectDB();
 
-    // 🧾 Step 1: Save order in MongoDB
+
     const saved = await Order.create({
       from,
       categoryName: state.order.categoryName,
@@ -531,3 +531,47 @@ if (postback === "CONFIRM_YES") {
   // Fallback
   await sendWhatsAppMessage(buildText(to, "Type *hi* to start again."));
 }
+
+// ---- Payment confirmation handler ----
+export async function handlePaymentUpdate(mongoOrderId: string, paymentId: string) {
+  try {
+    console.log("💳 [Bot] Payment update received for order:", mongoOrderId);
+
+    await connectDB();
+    const order = await Order.findByIdAndUpdate(
+      mongoOrderId,
+      { paid: true, status: "paid", paymentId },
+      { new: true }
+    );
+
+    if (!order) {
+      console.error("❌ [Bot] Order not found:", mongoOrderId);
+      return;
+    }
+
+    // 🧾 Build receipt message
+    const receipt = `🧾 *AV Food Factory Receipt*\n\n🍽️ Item: ${order.itemName}\n🔢 Qty: ${order.qty}\n💰 Total: ₹${order.total}\n💳 Payment ID: ${order.paymentId}\n📦 Status: Confirmed\n🕒 ${new Date().toLocaleString("en-IN")}\n\nThank you for ordering!`;
+
+    // ✅ Send receipt to customer
+    await sendWhatsAppMessage({
+      messaging_product: "whatsapp",
+      to: order.phone,
+      type: "text",
+      text: { body: receipt },
+    });
+
+    // ✅ Send update to admin
+    const adminMsg = `📦 *Paid Order Confirmed*\n👤 Customer: ${order.phone}\n🍽️ Item: ${order.itemName}\n🔢 Qty: ${order.qty}\n💰 Total: ₹${order.total}\n💳 Payment ID: ${order.paymentId}\n🕒 ${new Date().toLocaleString("en-IN")}`;
+    await sendWhatsAppMessage({
+      messaging_product: "whatsapp",
+      to: ADMIN_PHONE,
+      type: "text",
+      text: { body: adminMsg },
+    });
+
+    console.log("✅ [Bot] Payment update processed successfully");
+  } catch (err) {
+    console.error("❌ [Bot] Payment update error:", err);
+  }
+}
+
