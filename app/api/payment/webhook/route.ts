@@ -4,7 +4,7 @@ import connectDB from "@/lib/mongodb";
 import { Order } from "@/models/Order";
 import { sendWhatsAppMessage } from "@/lib/botLogic";
 
-export const runtime = "nodejs"; // ensure raw body access
+export const runtime = "nodejs";
 
 const ADMIN_PHONE = (process.env.ADMIN_WHATSAPP_NUMBER || "916306512288").replace("+", "");
 
@@ -15,10 +15,8 @@ export async function POST(req: Request) {
     const secret = process.env.RAZORPAY_WEBHOOK_SECRET!;
     const sig = req.headers.get("x-razorpay-signature");
     const raw = await req.text();
-    console.log("🔐 Signature:", sig);
-    console.log("📝 Raw Body:", raw);
 
-    // ✅ Verify signature
+    // ✅ Signature verification
     const expected = crypto.createHmac("sha256", secret).update(raw).digest("hex");
     if (expected !== sig) {
       console.error("❌ Signature mismatch");
@@ -26,42 +24,56 @@ export async function POST(req: Request) {
     }
 
     const body = JSON.parse(raw);
-    console.log("✅ Verified Webhook Event:", body.event);
+    console.log("✅ Verified event:", body.event);
 
+    // ✅ Handle both event types
     const entity =
-      body.payload?.payment?.entity || body.payload?.payment_link?.entity;
+      body.payload?.payment_link?.entity ||
+      body.payload?.payment?.entity ||
+      null;
+
     if (!entity) {
-      console.error("❌ Missing payment entity");
+      console.error("❌ No payment entity in webhook body");
       return NextResponse.json({ success: false, reason: "no-entity" }, { status: 400 });
+    }
+
+    const mongoOrderId = entity.notes?.mongoOrderId || entity.reference_id;
+    console.log("🆔 Mongo Order ID:", mongoOrderId);
+
+    if (!mongoOrderId) {
+      console.error("❌ No mongoOrderId in notes/reference");
+      return NextResponse.json({ success: false, reason: "no-order-id" }, { status: 400 });
     }
 
     await connectDB();
 
-    // The mongoOrderId is passed when creating the payment link
-    const mongoOrderId = entity.notes?.mongoOrderId || entity.reference_id;
-    console.log("🆔 Mongo Order ID:", mongoOrderId);
-
-    // ✅ Update the order in MongoDB
+    // ✅ Update order as paid
     const updated = await Order.findByIdAndUpdate(
       mongoOrderId,
       {
         paid: true,
-        razorpayOrderId: entity.order_id,
+        status: "paid",
+        razorpayOrderId: entity.order_id || entity.id,
         paymentId: entity.id,
       },
       { new: true }
     );
 
-    console.log("💾 DB Update Result:", updated ? "Updated" : "Not found");
+    if (!updated) {
+      console.error("❌ No matching order found in DB");
+      return NextResponse.json({ success: false, reason: "order-not-found" }, { status: 404 });
+    }
 
-    // ✅ Send WhatsApp receipts once DB is updated
-    if (updated) {
-      const receipt = `🧾 *AV Food Factory Receipt*\n\n🍽️ Item: ${updated.itemName}\n🔢 Qty: ${updated.qty}\n💰 Total: ₹${updated.total}\n💳 Payment ID: ${updated.paymentId}\n📦 Status: Confirmed\n🕒 ${new Date().toLocaleString("en-IN")}\n\nThank you for ordering!`;
+    console.log("💾 Order updated as paid:", updated._id);
 
+    // ✅ Send WhatsApp Receipt to Customer
+    const receipt = `🧾 *AV Food Factory Receipt*\n\n🍽️ Item: ${updated.itemName}\n🔢 Qty: ${updated.qty}\n💰 Total: ₹${updated.total}\n💳 Payment ID: ${updated.paymentId}\n📦 Status: Confirmed\n🕒 ${new Date().toLocaleString("en-IN")}\n\nThank you for ordering with us!`;
+
+    try {
       // Customer
       await sendWhatsAppMessage({
         messaging_product: "whatsapp",
-        to: updated.phone!,
+        to: updated.phone,
         type: "text",
         text: { body: receipt },
       });
@@ -72,9 +84,13 @@ export async function POST(req: Request) {
         to: ADMIN_PHONE,
         type: "text",
         text: {
-          body: `📦 *Paid Order Confirmed*\nCustomer: ${updated.phone}\nItem: ${updated.itemName}\nQty: ${updated.qty}\nTotal: ₹${updated.total}\nPayment ID: ${updated.paymentId}\nTime: ${new Date().toLocaleString("en-IN")}`,
+          body: `📦 *Paid Order Confirmed*\n👤 Customer: ${updated.phone}\n🍽️ Item: ${updated.itemName}\n🔢 Qty: ${updated.qty}\n💰 Total: ₹${updated.total}\n💳 Payment ID: ${updated.paymentId}\n🕒 ${new Date().toLocaleString("en-IN")}`,
         },
       });
+
+      console.log("✅ WhatsApp receipts sent successfully");
+    } catch (waErr) {
+      console.error("❌ WhatsApp send error:", waErr);
     }
 
     return NextResponse.json({ success: true });
