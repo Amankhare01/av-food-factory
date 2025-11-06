@@ -451,7 +451,9 @@ if (postback === "CONFIRM_YES") {
       status: "created",
     });
 
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL!;
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+    console.log("🧾 Creating payment link for Order:", saved._id);
+
     const res = await fetch(`${baseUrl}/api/payment`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -459,17 +461,17 @@ if (postback === "CONFIRM_YES") {
         amount: total,
         name: state.order.itemName,
         phone: state.order.phone,
-        mongoOrderId: saved._id, // 👈 This connects Razorpay payment link to MongoDB order
+        mongoOrderId: saved._id,
       }),
     });
 
-    const data = await res.json();
-    console.log("Payment API response:", data);
+    const text = await res.text();
+    console.log("💳 /api/payment raw response:", text);
+    const data = JSON.parse(text);
 
-    if (data?.success) {
+    if (data?.success && data.paymentLink?.short_url) {
       const payLink = data.paymentLink.short_url;
 
-      // ✅ Save payment identifiers for future updates
       await Order.findByIdAndUpdate(saved._id, {
         razorpayOrderId: data.orderId,
         paymentLinkId: data.paymentLink.id,
@@ -477,7 +479,6 @@ if (postback === "CONFIRM_YES") {
         status: "pending",
       });
 
-      // ✅ Send payment button + friendly reminder
       await sendWhatsAppMessage(buildPaymentButton(to, payLink, total));
       await sendWhatsAppMessage(
         buildText(
@@ -486,6 +487,7 @@ if (postback === "CONFIRM_YES") {
         )
       );
     } else {
+      console.error("❌ Payment API error:", data);
       await sendWhatsAppMessage(
         buildText(to, "⚠️ Error creating payment link. Please try again later.")
       );
@@ -497,14 +499,13 @@ if (postback === "CONFIRM_YES") {
     );
   }
 
-  // 🧾 Notify admin
   const adminMsg = `📩 *New Order Received*\nCustomer: ${state.order.phone}\nItem: ${state.order.itemName}\nQty: ${state.order.qty}\nTotal: ₹${total}\nTime: ${new Date().toLocaleString("en-IN")}`;
   await sendWhatsAppMessage(buildText(ADMIN_PHONE, adminMsg));
 
-  // Reset conversation state
   userStates.set(from, { step: "INIT", order: {} });
   return;
 }
+
 
 
 
