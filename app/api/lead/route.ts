@@ -48,8 +48,8 @@ export async function POST(request: Request) {
 
     // notifications (optional fail)
     try { await notifyEmail(lead); } catch {}
-    try { await notifyWhatsApp(lead); } catch {}
-    try { await autoReplyLead(lead); } catch {}
+    // try { await notifyWhatsApp(lead); } catch {}
+    // try { await autoReplyLead(lead); } catch {}
 
     return NextResponse.json({ ok: true, id: lead.id });
   } catch (err: any) {

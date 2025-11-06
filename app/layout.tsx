@@ -28,12 +28,20 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     url: "https://www.avfoodfactory.com/",
-    siteName: "AV Food Factory"
+    siteName: "AV Food Factory",
+    locale: "en_IN",
+    images: [
+      {
+        url: "https://www.avfoodfactory.com/og.jpg",
+        width: 1200,
+        height: 630,
+        alt: "AV Food Factory — Premium Catering in Lucknow",
+      },
+    ],
   },
   alternates: {
     canonical: "https://www.avfoodfactory.com/"
-  },
-  icons: { icon: "/og.jpg" }
+  }
 };
 
 
