@@ -438,6 +438,8 @@ if (postback === "CONFIRM_YES") {
 
   try {
     await connectDB();
+
+    // 🧾 Step 1: Save order in MongoDB
     const saved = await Order.create({
       from,
       categoryName: state.order.categoryName,
@@ -451,9 +453,10 @@ if (postback === "CONFIRM_YES") {
       status: "created",
     });
 
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-    console.log("🧾 Creating payment link for Order:", saved._id);
+    console.log("🧾 New order saved:", saved._id);
 
+    // 💳 Step 2: Request Razorpay Payment Link
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
     const res = await fetch(`${baseUrl}/api/payment`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -461,7 +464,7 @@ if (postback === "CONFIRM_YES") {
         amount: total,
         name: state.order.itemName,
         phone: state.order.phone,
-        mongoOrderId: saved._id,
+        mongoOrderId: saved._id, // 👈 we pass only for webhook identification
       }),
     });
 
@@ -469,42 +472,46 @@ if (postback === "CONFIRM_YES") {
     console.log("💳 /api/payment raw response:", text);
     const data = JSON.parse(text);
 
-    if (data?.success && data.paymentLink?.short_url) {
-      const payLink = data.paymentLink.short_url;
+    // ⚙️ Step 3: Check payment link creation
+    if (data?.success && data.paymentLinkUrl) {
+      const payLink = data.paymentLinkUrl;
 
+      // 🔒 Update order with Razorpay ID (no need to store payment link)
       await Order.findByIdAndUpdate(saved._id, {
-        razorpayOrderId: data.orderId,
-        paymentLinkId: data.paymentLink.id,
-        paymentLinkShortUrl: data.paymentLink.short_url,
+        razorpayOrderId: data.razorpayOrderId,
         status: "pending",
       });
 
+      // 💬 Step 4: Send payment button to customer
       await sendWhatsAppMessage(buildPaymentButton(to, payLink, total));
       await sendWhatsAppMessage(
         buildText(
           to,
-          "💡 Please complete your payment to confirm your order. You’ll get a receipt instantly after payment."
+          "💡 Please complete your payment to confirm your order. Once payment is verified, you’ll receive your receipt instantly."
         )
       );
     } else {
       console.error("❌ Payment API error:", data);
       await sendWhatsAppMessage(
-        buildText(to, "⚠️ Error creating payment link. Please try again later.")
+        buildText(to, "⚠️ Could not create payment link. Please try again later.")
       );
     }
   } catch (err) {
     console.error("❌ Payment or DB error:", err);
     await sendWhatsAppMessage(
-      buildText(to, "⚠️ Something went wrong. Please try again later.")
+      buildText(to, "⚠️ Something went wrong while creating your order. Please try again.")
     );
   }
 
+  // 🧾 Step 5: Notify Admin instantly
   const adminMsg = `📩 *New Order Received*\nCustomer: ${state.order.phone}\nItem: ${state.order.itemName}\nQty: ${state.order.qty}\nTotal: ₹${total}\nTime: ${new Date().toLocaleString("en-IN")}`;
   await sendWhatsAppMessage(buildText(ADMIN_PHONE, adminMsg));
 
+  // ♻️ Reset user state
   userStates.set(from, { step: "INIT", order: {} });
   return;
 }
+
 
 
 
