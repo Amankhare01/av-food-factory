@@ -1,21 +1,39 @@
-import mongoose, { Schema, model, models } from "mongoose";
+// models/Order.ts
+import mongoose, { Schema, Document } from "mongoose";
 
-const OrderSchema = new Schema(
+export interface IOrder extends Document {
+  from: string; // WhatsApp sender (for sending receipt)
+  categoryName?: string;
+  itemName?: string;
+  qty?: number;
+  delivery?: "pickup" | "delivery";
+  phone?: string; // delivery phone (user provided)
+  address?: string;
+  total?: number;
+  status?: "created" | "pending" | "paid" | "cancelled";
+  paid?: boolean;
+  paymentId?: string;
+  razorpayOrderId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const OrderSchema = new Schema<IOrder>(
   {
-    from: String,
+    from: { type: String, required: true },
     categoryName: String,
     itemName: String,
     qty: Number,
-    delivery: String,
+    delivery: { type: String, enum: ["pickup", "delivery"] },
     phone: String,
     address: String,
     total: Number,
+    status: { type: String, enum: ["created", "pending", "paid", "cancelled"], default: "created" },
     paid: { type: Boolean, default: false },
     paymentId: String,
     razorpayOrderId: String,
-    status: { type: String, default: "created" }, // created|pending|paid|failed
   },
   { timestamps: true }
 );
 
-export const Order = models.Order || model("Order", OrderSchema);
+export const Order = mongoose.models.Order || mongoose.model<IOrder>("Order", OrderSchema);

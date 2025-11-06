@@ -1,10 +1,14 @@
+// lib/botLogic.ts
 import connectDB from "./mongodb";
 import { Order } from "@/models/Order";
+
+// ---- ENV ----
 const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID!;
 const ACCESS_TOKEN = process.env.META_ACCESS_TOKEN!;
 const ADMIN_PHONE = (process.env.ADMIN_WHATSAPP_NUMBER || "916306512288").replace("+", "");
 
 // ---- Simple in-memory session ----
+// Note: For serverless cold starts, you can later swap to Redis with the same API.
 type Step =
   | "INIT"
   | "AWAITING_CATEGORY"
@@ -16,13 +20,14 @@ type Step =
   | "AWAITING_CONFIRM";
 
 type OrderDraft = {
+  mongoId?: string; // populated right after DB create
   categoryId?: string;
   categoryName?: string;
   itemId?: string;
   itemName?: string;
   qty?: number;
   delivery?: "pickup" | "delivery";
-  phone?: string;
+  phone?: string;   // delivery phone (not WA sender)
   address?: string;
 };
 
@@ -37,7 +42,7 @@ const CATEGORIES = [
   { id: "desserts", name: "Desserts" },
   { id: "beverages", name: "Beverages" },
   { id: "combos", name: "Combos" },
-];
+] as const;
 
 // ---- Items per Category ----
 const MENU: Record<string, { id: string; name: string; price: number }[]> = {
@@ -155,7 +160,7 @@ function buildCategoryList(to: string) {
 }
 
 function buildItemList(to: string, categoryId: string, categoryName: string) {
-  const items = MENU[categoryId];
+  const items = MENU[categoryId] || [];
   return {
     messaging_product: "whatsapp",
     to,
@@ -227,6 +232,10 @@ function buildDeliveryButtons(to: string) {
   };
 }
 
+function elide(s: string, n = 900) {
+  return s.length > n ? s.slice(0, n - 1) + "…" : s;
+}
+
 function buildConfirmButtons(to: string, summary: string) {
   return {
     messaging_product: "whatsapp",
@@ -235,7 +244,7 @@ function buildConfirmButtons(to: string, summary: string) {
     interactive: {
       type: "button",
       header: { type: "text", text: "Confirm Order" },
-      body: { text: summary },
+      body: { text: elide(summary, 900) },
       action: {
         buttons: [
           { type: "reply", reply: { id: "CONFIRM_YES", title: "✅ Confirm" } },
@@ -246,42 +255,34 @@ function buildConfirmButtons(to: string, summary: string) {
   };
 }
 
-function buildPaymentButton(to:string, payLink:string, total:number) {
+// Note: cta_url is retained exactly as in your flow.
+function buildPaymentButton(to: string, payLink: string, total: number) {
   return {
     messaging_product: "whatsapp",
     to,
     type: "interactive",
     interactive: {
       type: "cta_url",
-      header: {
-        type: "text",
-        text: "💳 Complete Payment",
-      },
-      body: {
-        text: `Your total is *₹${total}*.\nTap below to pay securely.`,
-      },
-      footer: {
-        text: "Powered by Razorpay • AV Food Factory",
-      },
+      header: { type: "text", text: "💳 Complete Payment" },
+      body: { text: `Your total is *₹${total}*.\nTap below to pay securely.` },
+      footer: { text: "Powered by Razorpay • AV Food Factory" },
       action: {
         name: "cta_url",
-        parameters: {
-          display_text: "💳 Pay Now",
-          url: payLink,
-        },
+        parameters: { display_text: "💳 Pay Now", url: payLink },
       },
     },
   };
 }
 
-
 // ---- Validators ----
 function normalizePhone(s: string) {
-  const digits = s.replace(/[^\d]/g, "");
-  return digits.length < 10 ? null : digits;
+  const digits = (s || "").replace(/[^\d]/g, "");
+  if (digits.length < 10) return null;
+  const local10 = digits.slice(-10);
+  return `91${local10}`; // store delivery phone in 91xxxxxxxxxx format
 }
 function validAddress(s: string) {
-  return s.trim().length >= 6;
+  return (s || "").trim().length >= 6;
 }
 function summarize(order: OrderDraft) {
   const items = order.categoryId ? MENU[order.categoryId] || [] : [];
@@ -303,24 +304,55 @@ function summarize(order: OrderDraft) {
 
 // ---- MAIN BOT HANDLER ----
 export async function handleIncoming({ from, userMsg }: { from: string; userMsg: string }) {
-  if (!userStates.has(from)) userStates.set(from, { step: "INIT", order: {} });
-  const state = userStates.get(from)!;
-  const to = from;
+  const to = (from || "").replace("+", ""); // hard normalize WA JID
+  if (!userStates.has(to)) userStates.set(to, { step: "INIT", order: {} });
+  const state = userStates.get(to)!;
+
   const lower = (userMsg || "").trim().toLowerCase();
   const isPostback = userMsg.startsWith("__POSTBACK__:");
   const postback = isPostback ? userMsg.replace("__POSTBACK__:", "") : "";
 
-  // 1. Greet and show categories
+  // ----- Dev shortcuts for admin only -----
+  if (to === ADMIN_PHONE) {
+    if (lower === "ping") {
+      await sendWhatsAppMessage(buildText(to, "pong ✅"));
+      return;
+    }
+    if (lower === "last") {
+      try {
+        await connectDB();
+        const o = await Order.findOne().sort({ createdAt: -1 });
+        await sendWhatsAppMessage(buildText(to, o ? JSON.stringify(o, null, 2) : "no orders"));
+      } catch {
+        await sendWhatsAppMessage(buildText(to, "db error"));
+      }
+      return;
+    }
+    if (lower.startsWith("paid ")) {
+      const id = lower.replace("paid ", "");
+      await handlePaymentUpdate(id, "manual_dev_payment");
+      await sendWhatsAppMessage(buildText(to, "manual marked paid ✅"));
+      return;
+    }
+  }
+
+  // 1) INIT
   if (state.step === "INIT") {
-    if (["hi", "hii", "hello", "hey", "hlo"].includes(lower)) {
+    const starts = ["hi", "hii", "hello", "hey", "hlo", "start", "menu", "order"];
+    if (starts.includes(lower)) {
       await sendWhatsAppMessage(buildMenuButton(to));
       state.step = "AWAITING_CATEGORY";
+      return;
+    }
+    if (lower === "paid") {
+      await sendWhatsAppMessage(buildText(to, "We’ll check your latest order status and notify you shortly."));
       return;
     }
     await sendWhatsAppMessage(buildText(to, "Type *hi* to start your order."));
     return;
   }
 
+  // 2) CATEGORY
   if (state.step === "AWAITING_CATEGORY") {
     if (postback === "ACTION_SHOW_CATEGORIES") {
       await sendWhatsAppMessage(buildCategoryList(to));
@@ -344,10 +376,11 @@ export async function handleIncoming({ from, userMsg }: { from: string; userMsg:
     return;
   }
 
+  // 3) MENU
   if (state.step === "AWAITING_MENU") {
     if (postback.startsWith("MENU_")) {
       const itemId = postback.replace("MENU_", "");
-      const m = MENU[state.order.categoryId!]?.find((x) => x.id === itemId);
+      const m = state.order.categoryId ? MENU[state.order.categoryId]?.find((x) => x.id === itemId) : null;
       if (!m) {
         await sendWhatsAppMessage(buildText(to, "Item not found. Try again."));
         await sendWhatsAppMessage(buildItemList(to, state.order.categoryId!, state.order.categoryName!));
@@ -363,6 +396,7 @@ export async function handleIncoming({ from, userMsg }: { from: string; userMsg:
     return;
   }
 
+  // 4) QTY
   if (state.step === "AWAITING_QTY") {
     if (postback.startsWith("QTY_")) {
       const qty = parseInt(postback.replace("QTY_", ""), 10);
@@ -379,8 +413,9 @@ export async function handleIncoming({ from, userMsg }: { from: string; userMsg:
     return;
   }
 
+  // 5) DELIVERY TYPE
   if (state.step === "AWAITING_DELIVERY") {
-     if (postback.startsWith("DELIVERY_")) {
+    if (postback.startsWith("DELIVERY_")) {
       const t = postback.replace("DELIVERY_", "") as "pickup" | "delivery";
       state.order.delivery = t;
       state.step = "AWAITING_PHONE";
@@ -391,7 +426,7 @@ export async function handleIncoming({ from, userMsg }: { from: string; userMsg:
     return;
   }
 
-
+  // 6) PHONE
   if (state.step === "AWAITING_PHONE") {
     const normalized = normalizePhone(userMsg);
     if (!normalized) {
@@ -409,7 +444,7 @@ export async function handleIncoming({ from, userMsg }: { from: string; userMsg:
     return;
   }
 
-  
+  // 7) ADDRESS
   if (state.step === "AWAITING_ADDRESS") {
     if (!validAddress(userMsg)) {
       await sendWhatsAppMessage(buildText(to, "Address seems short. Try again."));
@@ -421,118 +456,126 @@ export async function handleIncoming({ from, userMsg }: { from: string; userMsg:
     return;
   }
 
-
+  // 8) CONFIRM
   if (state.step === "AWAITING_CONFIRM") {
-if (postback === "CONFIRM_YES") {
-  const summary = summarize(state.order);
-  await sendWhatsAppMessage(
-    buildText(
-      to,
-      `🎉 *Order Confirmed!*\n\n${summary}\n\nPlease proceed to payment below 👇`
-    )
-  );
+    if (postback === "CONFIRM_YES") {
+      // Idempotency guard for double taps
+      if ((state as any).__creating) return;
+      (state as any).__creating = true;
 
-  const items = MENU[state.order.categoryId!] || [];
-  const m = items.find((x) => x.id === state.order.itemId);
-  const total = (state.order.qty || 0) * (m?.price || 0);
+      const items = state.order.categoryId ? MENU[state.order.categoryId] || [] : [];
+      const m = items.find((x) => x.id === state.order.itemId);
+      const price = m?.price || 0;
+      const total = (state.order.qty || 0) * price;
 
-  try {
-    await connectDB();
+      try {
+        await sendWhatsAppMessage(
+          buildText(
+            to,
+            `🎉 *Order Confirmed!*\n\n${summarize(state.order)}\n\nPlease proceed to payment below 👇`
+          )
+        );
 
+        await connectDB();
 
-    const saved = await Order.create({
-      from,
-      categoryName: state.order.categoryName,
-      itemName: state.order.itemName,
-      qty: state.order.qty,
-      delivery: state.order.delivery,
-      phone: state.order.phone,
-      address: state.order.address,
-      total,
-      paid: false,
-      status: "created",
-    });
+        // Save order in DB — include `from` for receipt later
+        const saved = await Order.create({
+          from: to,
+          categoryName: state.order.categoryName,
+          itemName: state.order.itemName,
+          qty: state.order.qty,
+          delivery: state.order.delivery,
+          phone: state.order.phone,     // delivery contact
+          address: state.order.address,
+          total,
+          paid: false,
+          status: "created",
+        });
 
-    console.log("🧾 New order saved:", saved._id);
+        state.order.mongoId = String(saved._id);
 
-    // 💳 Step 2: Request Razorpay Payment Link
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-    const res = await fetch(`${baseUrl}/api/payment`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        amount: total,
-        name: state.order.itemName,
-        phone: state.order.phone,
-        mongoOrderId: saved._id, // 👈 we pass only for webhook identification
-      }),
-    });
+        // Request Razorpay Payment Link (your existing route)
+        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+        const res = await fetch(`${baseUrl}/api/payment`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            amount: total,
+            name: state.order.itemName,
+            phone: state.order.phone,
+            mongoOrderId: saved._id, // only for webhook identification
+          }),
+        });
 
-    const text = await res.text();
-    console.log("💳 /api/payment raw response:", text);
-    const data = JSON.parse(text);
+        const raw = await res.text();
+        console.log("💳 /api/payment raw response:", raw);
+        let data: any = {};
+        try {
+          data = JSON.parse(raw || "{}");
+        } catch {
+          // Non-JSON error from your API
+        }
 
-    // ⚙️ Step 3: Check payment link creation
-    if (data?.success && data.paymentLinkUrl) {
-      const payLink = data.paymentLinkUrl;
+        if (data?.success && data.paymentLinkUrl) {
+          const payLink = data.paymentLinkUrl;
 
-      // 🔒 Update order with Razorpay ID (no need to store payment link)
-      await Order.findByIdAndUpdate(saved._id, {
-        razorpayOrderId: data.razorpayOrderId,
-        status: "pending",
-      });
+          await Order.findByIdAndUpdate(saved._id, {
+            razorpayOrderId: data.razorpayOrderId,
+            status: "pending",
+          });
 
-      // 💬 Step 4: Send payment button to customer
-      await sendWhatsAppMessage(buildPaymentButton(to, payLink, total));
-      await sendWhatsAppMessage(
-        buildText(
-          to,
-          "💡 Please complete your payment to confirm your order. Once payment is verified, you’ll receive your receipt instantly."
-        )
-      );
-    } else {
-      console.error("❌ Payment API error:", data);
-      await sendWhatsAppMessage(
-        buildText(to, "⚠️ Could not create payment link. Please try again later.")
-      );
+          await sendWhatsAppMessage(buildPaymentButton(to, payLink, total));
+          await sendWhatsAppMessage(
+            buildText(
+              to,
+              "💡 Please complete your payment to confirm your order. Once payment is verified, you’ll receive your receipt instantly.\nIf you’ve paid and didn’t get a receipt yet, reply *paid* — we’ll double-check instantly."
+            )
+          );
+        } else {
+          console.error("❌ Payment API error:", data);
+          await sendWhatsAppMessage(buildText(to, "⚠️ Could not create payment link. Please try again later."));
+        }
+      } catch (err) {
+        console.error("❌ Payment or DB error:", err);
+        await sendWhatsAppMessage(
+          buildText(to, "⚠️ Something went wrong while creating your order. Please try again.")
+        );
+      } finally {
+        (state as any).__creating = false;
+      }
+
+      // Notify Admin instantly (with human subtotal line)
+      const subtotalLine = `Qty: ${state.order.qty} x ₹${price} = ₹${total}`;
+      const adminMsg =
+        `📩 *New Order Received*\n` +
+        `Customer (WA): ${to}\n` +
+        `Delivery Phone: ${state.order.phone || "—"}\n` +
+        `Item: ${state.order.itemName}\n` +
+        `${subtotalLine}\n` +
+        `Time: ${new Date().toLocaleString("en-IN")}`;
+      await sendWhatsAppMessage(buildText(ADMIN_PHONE, adminMsg));
+
+      // Reset user state
+      userStates.set(to, { step: "INIT", order: {} });
+      return;
     }
-  } catch (err) {
-    console.error("❌ Payment or DB error:", err);
-    await sendWhatsAppMessage(
-      buildText(to, "⚠️ Something went wrong while creating your order. Please try again.")
-    );
-  }
-
-  // 🧾 Step 5: Notify Admin instantly
-  const adminMsg = `📩 *New Order Received*\nCustomer: ${state.order.phone}\nItem: ${state.order.itemName}\nQty: ${state.order.qty}\nTotal: ₹${total}\nTime: ${new Date().toLocaleString("en-IN")}`;
-  await sendWhatsAppMessage(buildText(ADMIN_PHONE, adminMsg));
-
-  // ♻️ Reset user state
-  userStates.set(from, { step: "INIT", order: {} });
-  return;
-}
-
-
-
-
-
-
-
 
     if (postback === "CONFIRM_NO") {
       await sendWhatsAppMessage(buildText(to, "Order cancelled. Type *hi* to start again."));
-      userStates.set(from, { step: "INIT", order: {} });
+      await sendWhatsAppMessage(buildMenuButton(to));
+      userStates.set(to, { step: "INIT", order: {} });
       return;
     }
+
     await sendWhatsAppMessage(buildConfirmButtons(to, summarize(state.order)));
     return;
   }
 
-  // Fallback
+  // 9) Fallback
   await sendWhatsAppMessage(buildText(to, "Type *hi* to start again."));
 }
 
-// ---- Payment confirmation handler ----
+// ---- Payment confirmation handler (called by your Razorpay webhook route) ----
 export async function handlePaymentUpdate(mongoOrderId: string, paymentId: string) {
   try {
     console.log("💳 [Bot] Payment update received for order:", mongoOrderId);
@@ -549,29 +592,39 @@ export async function handlePaymentUpdate(mongoOrderId: string, paymentId: strin
       return;
     }
 
-    // 🧾 Build receipt message
-    const receipt = `🧾 *AV Food Factory Receipt*\n\n🍽️ Item: ${order.itemName}\n🔢 Qty: ${order.qty}\n💰 Total: ₹${order.total}\n💳 Payment ID: ${order.paymentId}\n📦 Status: Confirmed\n🕒 ${new Date().toLocaleString("en-IN")}\n\nThank you for ordering!`;
+    // ✅ Send receipt to WhatsApp sender (order.from), not delivery phone
+    const sendTo = (order.from || "").replace("+", "");
+    if (!sendTo) {
+      console.error("❌ [Bot] Missing `from` (WhatsApp number) on order:", mongoOrderId);
+      return;
+    }
 
-    // ✅ Send receipt to customer
-    await sendWhatsAppMessage({
-      messaging_product: "whatsapp",
-      to: order.phone,
-      type: "text",
-      text: { body: receipt },
-    });
+    const receipt =
+      `🧾 *AV Food Factory Receipt*\n\n` +
+      `🍽️ Item: ${order.itemName}\n` +
+      `🔢 Qty: ${order.qty}\n` +
+      `💰 Total: ₹${order.total}\n` +
+      `💳 Payment ID: ${order.paymentId}\n` +
+      `📦 Status: Confirmed\n` +
+      `🕒 ${new Date().toLocaleString("en-IN")}\n\n` +
+      `Thank you for ordering!`;
 
-    // ✅ Send update to admin
-    const adminMsg = `📦 *Paid Order Confirmed*\n👤 Customer: ${order.phone}\n🍽️ Item: ${order.itemName}\n🔢 Qty: ${order.qty}\n💰 Total: ₹${order.total}\n💳 Payment ID: ${order.paymentId}\n🕒 ${new Date().toLocaleString("en-IN")}`;
-    await sendWhatsAppMessage({
-      messaging_product: "whatsapp",
-      to: ADMIN_PHONE,
-      type: "text",
-      text: { body: adminMsg },
-    });
+    await sendWhatsAppMessage({ messaging_product: "whatsapp", to: sendTo, type: "text", text: { body: receipt } });
+
+    const adminMsg =
+      `📦 *Paid Order Confirmed*\n` +
+      `👤 Customer (WA): ${sendTo}\n` +
+      `📞 Delivery Phone: ${order.phone || "—"}\n` +
+      `🍽️ Item: ${order.itemName}\n` +
+      `🔢 Qty: ${order.qty}\n` +
+      `💰 Total: ₹${order.total}\n` +
+      `💳 Payment ID: ${order.paymentId}\n` +
+      `🕒 ${new Date().toLocaleString("en-IN")}`;
+
+    await sendWhatsAppMessage({ messaging_product: "whatsapp", to: ADMIN_PHONE, type: "text", text: { body: adminMsg } });
 
     console.log("✅ [Bot] Payment update processed successfully");
   } catch (err) {
     console.error("❌ [Bot] Payment update error:", err);
   }
 }
-
