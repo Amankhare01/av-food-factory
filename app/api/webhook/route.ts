@@ -4,7 +4,7 @@ import { handleIncoming } from "@/lib/botLogic";
 
 const VERIFY_TOKEN = process.env.META_VERIFY_TOKEN;
 
-// 🔹 Webhook Verification (Meta setup step)
+// Webhook Verification (Meta setup step)
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -13,19 +13,19 @@ export async function GET(req: NextRequest) {
     const challenge = searchParams.get("hub.challenge");
 
     if (mode === "subscribe" && token === VERIFY_TOKEN) {
-      console.log("✅ WhatsApp webhook verified successfully.");
+      console.log(" WhatsApp webhook verified successfully.");
       return new NextResponse(challenge, { status: 200 });
     }
 
-    console.warn("⚠️ Invalid webhook verification attempt.");
+    console.warn("Invalid webhook verification attempt.");
     return new NextResponse("Forbidden", { status: 403 });
   } catch (err) {
-    console.error("❌ Webhook GET error:", err);
+    console.error(" Webhook GET error:", err);
     return new NextResponse("Server error", { status: 500 });
   }
 }
 
-// 🔹 Message Event Handling
+//  Message Event Handling
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -63,14 +63,14 @@ export async function POST(req: NextRequest) {
       return "";
     })();
 
-    console.log("📩 Incoming from:", from, "| Message:", userMsg);
+    console.log(" Incoming from:", from, "| Message:", userMsg);
 
     // Hand over to main bot logic
     await handleIncoming({ from, userMsg });
 
     return NextResponse.json({ ok: true });
   } catch (err: any) {
-    console.error("❌ Webhook POST error:", err);
+    console.error(" Webhook POST error:", err);
     // Respond 200 so Meta doesn't retry infinitely; you log error internally
     return NextResponse.json({ ok: false, error: err.message || "Internal Error" }, { status: 200 });
   }
