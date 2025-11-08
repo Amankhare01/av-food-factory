@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { FaWhatsapp, FaEnvelope, FaMapMarkerAlt } from "react-icons/fa";
+import { FaWhatsapp, FaEnvelope, FaMapMarkerAlt, FaFacebook, FaInstagram } from "react-icons/fa";
 
 export default function Footer() {
   return (
@@ -24,6 +24,10 @@ export default function Footer() {
             Dastarkhwan-style catering rooted in Lucknow’s Nawabi hospitality.
             From grand weddings to cozy family feasts — we bring taste and tradition together.
           </p>
+          <div className="flex gap-4 mt-6">
+            <Link href="https://www.facebook.com/avfoodfactory/" className="hover:text-green-900 text-"><FaFacebook size={22} /></Link>
+            <Link href="https://www.instagram.com/avfoodfactory/" className="hover:text-green-900"><FaInstagram size={22} /></Link>
+          </div>
         </div>
 
         {/* Contact */}
