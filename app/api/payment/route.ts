@@ -11,7 +11,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: "Missing fields" }, { status: 400 });
     }
 
-    // ✅ DB connection must be FIRST for safety
+    // DB connection must be FIRST for safety
     await connectDB();
 
     const razorpay = new Razorpay({
@@ -48,7 +48,7 @@ export async function POST(req: Request) {
       paymentLinkUrl: paymentLink.short_url,
     });
   } catch (err: any) {
-    console.error("❌ Payment creation error:", err);
+    console.error(" Payment creation error:", err);
     return NextResponse.json(
       { success: false, error: err.message || "Server error" },
       { status: 500 }

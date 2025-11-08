@@ -128,7 +128,7 @@ function buildMenuButton(to: string) {
     type: "interactive",
     interactive: {
       type: "button",
-      body: { text: "Welcome to AV Food Factory 👨‍🍳\nPlease choose a food collection to start." },
+      body: { text: "Welcome to AV Food Factory \nPlease choose a food collection to start." },
       action: {
         buttons: [{ type: "reply", reply: { id: "ACTION_SHOW_CATEGORIES", title: "🍴 Browse Menu" } }],
       },
@@ -224,8 +224,8 @@ function buildDeliveryButtons(to: string) {
       body: { text: "Choose delivery type:" },
       action: {
         buttons: [
-          { type: "reply", reply: { id: "DELIVERY_pickup", title: "🏪 Pickup" } },
-          { type: "reply", reply: { id: "DELIVERY_delivery", title: "🚚 Delivery" } },
+          { type: "reply", reply: { id: "DELIVERY_pickup", title: " Pickup" } },
+          { type: "reply", reply: { id: "DELIVERY_delivery", title: "Delivery" } },
         ],
       },
     },
@@ -247,8 +247,8 @@ function buildConfirmButtons(to: string, summary: string) {
       body: { text: elide(summary, 900) },
       action: {
         buttons: [
-          { type: "reply", reply: { id: "CONFIRM_YES", title: "✅ Confirm" } },
-          { type: "reply", reply: { id: "CONFIRM_NO", title: "❌ Cancel" } },
+          { type: "reply", reply: { id: "CONFIRM_YES", title: "Confirm" } },
+          { type: "reply", reply: { id: "CONFIRM_NO", title: " Cancel" } },
         ],
       },
     },
@@ -263,7 +263,7 @@ function buildPaymentButton(to: string, payLink: string, total: number) {
     type: "interactive",
     interactive: {
       type: "cta_url",
-      header: { type: "text", text: "💳 Complete Payment" },
+      header: { type: "text", text: " Complete Payment" },
       body: { text: `Your total is *₹${total}*.\nTap below to pay securely.` },
       footer: { text: "Powered by Razorpay • AV Food Factory" },
       action: {
@@ -290,11 +290,11 @@ function summarize(order: OrderDraft) {
   const price = m ? m.price : 0;
   const subtotal = (order.qty || 0) * price;
   return (
-    `🧾 *Order Summary*\n\n` +
-    `• Category: ${order.categoryName}\n` +
-    `• Item: ${order.itemName}\n` +
-    `• Qty: ${order.qty}\n` +
-    `• Type: ${order.delivery === "pickup" ? "Pickup" : "Delivery"}\n` +
+    ` *Order Summary*\n\n` +
+    `Category: ${order.categoryName}\n` +
+    `Item: ${order.itemName}\n` +
+    `Qty: ${order.qty}\n` +
+    `Type: ${order.delivery === "pickup" ? "Pickup" : "Delivery"}\n` +
     (order.phone ? `• Phone: ${order.phone}\n` : "") +
     (order.address ? `• Address: ${order.address}\n` : "") +
     (m ? `• Price: ₹${price} × ${order.qty} = ₹${subtotal}\n` : "") +
@@ -331,7 +331,7 @@ export async function handleIncoming({ from, userMsg }: { from: string; userMsg:
     if (lower.startsWith("paid ")) {
       const id = lower.replace("paid ", "");
       await handlePaymentUpdate(id, "manual_dev_payment");
-      await sendWhatsAppMessage(buildText(to, "manual marked paid ✅"));
+      await sendWhatsAppMessage(buildText(to, "manual marked paid "));
       return;
     }
   }
@@ -472,7 +472,7 @@ export async function handleIncoming({ from, userMsg }: { from: string; userMsg:
         await sendWhatsAppMessage(
           buildText(
             to,
-            `🎉 *Order Confirmed!*\n\n${summarize(state.order)}\n\nPlease proceed to payment below 👇`
+            ` *Order Confirmed!*\n\n${summarize(state.order)}\n\nPlease proceed to payment below `
           )
         );
 
@@ -508,7 +508,7 @@ export async function handleIncoming({ from, userMsg }: { from: string; userMsg:
         });
 
         const raw = await res.text();
-        console.log("💳 /api/payment raw response:", raw);
+        console.log("/api/payment raw response:", raw);
         let data: any = {};
         try {
           data = JSON.parse(raw || "{}");
@@ -528,17 +528,17 @@ export async function handleIncoming({ from, userMsg }: { from: string; userMsg:
           await sendWhatsAppMessage(
             buildText(
               to,
-              "💡 Please complete your payment to confirm your order. Once payment is verified, you’ll receive your receipt instantly.\nIf you’ve paid and didn’t get a receipt yet, reply *paid* — we’ll double-check instantly."
+              " Please complete your payment to confirm your order. Once payment is verified, you’ll receive your receipt instantly.\nIf you’ve paid and didn’t get a receipt yet, reply *paid* — we’ll double-check instantly."
             )
           );
         } else {
-          console.error("❌ Payment API error:", data);
-          await sendWhatsAppMessage(buildText(to, "⚠️ Could not create payment link. Please try again later."));
+          console.error(" Payment API error:", data);
+          await sendWhatsAppMessage(buildText(to, " Could not create payment link. Please try again later."));
         }
       } catch (err) {
         console.error("❌ Payment or DB error:", err);
         await sendWhatsAppMessage(
-          buildText(to, "⚠️ Something went wrong while creating your order. Please try again.")
+          buildText(to, " Something went wrong while creating your order. Please try again.")
         );
       } finally {
         (state as any).__creating = false;
@@ -547,7 +547,7 @@ export async function handleIncoming({ from, userMsg }: { from: string; userMsg:
       // Notify Admin instantly (with human subtotal line)
       const subtotalLine = `Qty: ${state.order.qty} x ₹${price} = ₹${total}`;
       const adminMsg =
-        `📩 *New Order Received*\n` +
+        ` *New Order Received*\n` +
         `Customer (WA): ${to}\n` +
         `Delivery Phone: ${state.order.phone || "—"}\n` +
         `Item: ${state.order.itemName}\n` +
@@ -578,7 +578,7 @@ export async function handleIncoming({ from, userMsg }: { from: string; userMsg:
 // ---- Payment confirmation handler (called by your Razorpay webhook route) ----
 export async function handlePaymentUpdate(mongoOrderId: string, paymentId: string) {
   try {
-    console.log("💳 [Bot] Payment update received for order:", mongoOrderId);
+    console.log(" [Bot] Payment update received for order:", mongoOrderId);
 
     await connectDB();
     const order = await Order.findByIdAndUpdate(
@@ -588,43 +588,43 @@ export async function handlePaymentUpdate(mongoOrderId: string, paymentId: strin
     );
 
     if (!order) {
-      console.error("❌ [Bot] Order not found:", mongoOrderId);
+      console.error(" [Bot] Order not found:", mongoOrderId);
       return;
     }
 
-    // ✅ Send receipt to WhatsApp sender (order.from), not delivery phone
+    //  Send receipt to WhatsApp sender (order.from), not delivery phone
     const sendTo = (order.from || "").replace("+", "");
     if (!sendTo) {
-      console.error("❌ [Bot] Missing `from` (WhatsApp number) on order:", mongoOrderId);
+      console.error(" [Bot] Missing `from` (WhatsApp number) on order:", mongoOrderId);
       return;
     }
 
     const receipt =
-      `🧾 *AV Food Factory Receipt*\n\n` +
-      `🍽️ Item: ${order.itemName}\n` +
-      `🔢 Qty: ${order.qty}\n` +
-      `💰 Total: ₹${order.total}\n` +
-      `💳 Payment ID: ${order.paymentId}\n` +
-      `📦 Status: Confirmed\n` +
-      `🕒 ${new Date().toLocaleString("en-IN")}\n\n` +
+      ` *AV Food Factory Receipt*\n\n` +
+      ` Item: ${order.itemName}\n` +
+      ` Qty: ${order.qty}\n` +
+      ` Total: ₹${order.total}\n` +
+      ` Payment ID: ${order.paymentId}\n` +
+      ` Status: Confirmed\n` +
+      ` ${new Date().toLocaleString("en-IN")}\n\n` +
       `Thank you for ordering!`;
 
     await sendWhatsAppMessage({ messaging_product: "whatsapp", to: sendTo, type: "text", text: { body: receipt } });
 
     const adminMsg =
-      `📦 *Paid Order Confirmed*\n` +
-      `👤 Customer (WA): ${sendTo}\n` +
-      `📞 Delivery Phone: ${order.phone || "—"}\n` +
-      `🍽️ Item: ${order.itemName}\n` +
-      `🔢 Qty: ${order.qty}\n` +
-      `💰 Total: ₹${order.total}\n` +
-      `💳 Payment ID: ${order.paymentId}\n` +
-      `🕒 ${new Date().toLocaleString("en-IN")}`;
+      ` *Paid Order Confirmed*\n` +
+      ` Customer (WA): ${sendTo}\n` +
+      ` Delivery Phone: ${order.phone || "—"}\n` +
+      ` Item: ${order.itemName}\n` +
+      ` Qty: ${order.qty}\n` +
+      ` Total: ₹${order.total}\n` +
+      ` Payment ID: ${order.paymentId}\n` +
+      ` ${new Date().toLocaleString("en-IN")}`;
 
     await sendWhatsAppMessage({ messaging_product: "whatsapp", to: ADMIN_PHONE, type: "text", text: { body: adminMsg } });
 
-    console.log("✅ [Bot] Payment update processed successfully");
+    console.log(" [Bot] Payment update processed successfully");
   } catch (err) {
-    console.error("❌ [Bot] Payment update error:", err);
+    console.error(" [Bot] Payment update error:", err);
   }
 }
