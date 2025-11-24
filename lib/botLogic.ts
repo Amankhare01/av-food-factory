@@ -1,4 +1,5 @@
-// lib/botLogic.ts
+
+import { handleMealPlanIncoming } from "./mealPlanBot";
 import connectDB from "./mongodb";
 import { Order } from "@/models/Order";
 
@@ -128,13 +129,17 @@ function buildMenuButton(to: string) {
     type: "interactive",
     interactive: {
       type: "button",
-      body: { text: "Welcome to AV Food Factory \nPlease choose a food collection to start." },
+      body: { text: "Welcome to AV Food Factory \nPlease choose an option to start." },
       action: {
-        buttons: [{ type: "reply", reply: { id: "ACTION_SHOW_CATEGORIES", title: "🍴 Browse Menu" } }],
+        buttons: [
+          { type: "reply", reply: { id: "ACTION_SHOW_CATEGORIES", title: "🍴 Browse Menu" } },
+          { type: "reply", reply: { id: "ACTION_PLAN_MEAL", title: "Plan a Meal" } },
+        ],
       },
     },
   };
 }
+
 
 function buildCategoryList(to: string) {
   return {
@@ -349,6 +354,13 @@ export async function handleIncoming({ from, userMsg }: { from: string; userMsg:
       return;
     }
     await sendWhatsAppMessage(buildText(to, "Type *hi* to start your order."));
+    return;
+  }
+  // inside handleIncoming, near top where you parse postback:
+  if (postback === "ACTION_PLAN_MEAL") {
+    // hand off to meal plan bot
+    await handleMealPlanIncoming({ from: to, userMsg: postback });
+    // keep user state for ordering unchanged (so they can return to ordering later)
     return;
   }
 
