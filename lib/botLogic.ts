@@ -365,7 +365,10 @@ if (userMealStates.has(to)) {
     return;
   }
  
-
+if (postback === "ACTION_PLAN_MEAL") {
+  await handleMealPlanIncoming({ from: to, userMsg: postback });
+  return;
+}
   // 2) CATEGORY
   if (state.step === "AWAITING_CATEGORY") {
     if (postback === "ACTION_SHOW_CATEGORIES") {
