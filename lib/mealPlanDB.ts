@@ -10,6 +10,8 @@ export interface IMealPlan extends Document {
   planText: string;
   priceWeekly: number;
   priceMonthly: number;
+  allergies?: string;     // optional allergies info
+  cuisine?: string;       // optional cuisine preference
   subscribed: boolean;
   subscribedAt?: Date;
 }
@@ -26,12 +28,14 @@ export interface IMealReminder extends Document {
 const MealPlanSchema = new Schema<IMealPlan>(
   {
     userId: { type: String, required: true, index: true },
-    goal: String,
-    diet: String,
-    mealsPerDay: Number,
-    planText: String,
-    priceWeekly: Number,
-    priceMonthly: Number,
+    goal: { type: String, required: true },
+    diet: { type: String, required: true },
+    mealsPerDay: { type: Number, required: true },
+    planText: { type: String, required: true },
+    priceWeekly: { type: Number, default: 399 },
+    priceMonthly: { type: Number, default: 999 },
+    allergies: String,
+    cuisine: String,
     subscribed: { type: Boolean, default: false },
     subscribedAt: Date,
   },
@@ -58,14 +62,19 @@ const MealReminder: Model<IMealReminder> =
   (mongoose.models?.MealReminder as Model<IMealReminder>) ??
   mongoose.model<IMealReminder>("MealReminder", MealReminderSchema);
 
-export async function saveUserMealPlan(userId: string, payload: {
-  goal: string;
-  diet: string;
-  mealsPerDay: number;
-  planText: string;
-  priceWeekly?: number;
-  priceMonthly?: number;
-}) {
+export async function saveUserMealPlan(
+  userId: string,
+  payload: {
+    goal: string;
+    diet: string;
+    mealsPerDay: number;
+    planText: string;
+    priceWeekly?: number;
+    priceMonthly?: number;
+    allergies?: string;
+    cuisine?: string;
+  }
+) {
   await connectDB();
   const doc = await MealPlan.create({
     userId,
@@ -75,6 +84,8 @@ export async function saveUserMealPlan(userId: string, payload: {
     planText: payload.planText,
     priceWeekly: payload.priceWeekly ?? 399,
     priceMonthly: payload.priceMonthly ?? 999,
+    allergies: payload.allergies,
+    cuisine: payload.cuisine,
     subscribed: false,
   });
   return doc;

@@ -1,18 +1,20 @@
 // lib/mealPlanBot.ts
-import { sendWhatsAppMessage } from "./botLogic"; // re-use existing sender
-import { buildText, buildButtons} from "./mealPlanUIBuilders";
-import { generateMealPlanAI } from "./mealPlanAI";
+import { sendWhatsAppMessage } from "./botLogic"; // reuse existing sender
+import { buildText, buildButtons } from "./mealPlanUIBuilders";
+import OpenAI from "openai";
 import { saveUserMealPlan, saveMealReminder, activateSubscription } from "./mealPlanDB";
 
-/**
- * Note:
- * - We use a small in-memory state per user here. For production switch to Redis if you want persistence across restarts.
- */
+// OpenAI client
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// ---- User state ----
 type MealStep =
   | "START"
   | "ASK_GOAL"
   | "ASK_DIET"
   | "ASK_MEALS"
+  | "ASK_ALLERGIES"
+  | "ASK_CUISINE"
   | "SHOW_PLAN"
   | "WAITING_PAYMENT"
   | "ACTIVE";
@@ -22,12 +24,14 @@ type MealState = {
   goal?: string;
   diet?: string;
   mealsPerDay?: number;
+  allergies?: string;
+  cuisine?: string;
   planText?: string;
 };
 
 export const userMealStates = new Map<string, MealState>();
 
-
+// ---- MAIN HANDLER ----
 export async function handleMealPlanIncoming({ from, userMsg }: { from: string; userMsg: string }) {
   const to = (from || "").replace("+", "");
   if (!userMealStates.has(to)) userMealStates.set(to, { step: "START" });
@@ -36,8 +40,8 @@ export async function handleMealPlanIncoming({ from, userMsg }: { from: string; 
   const isPostback = userMsg.startsWith("__POSTBACK__:");
   const postback = isPostback ? userMsg.replace("__POSTBACK__:", "") : "";
 
-  // Entry via the button or text
-  if (postback === "ACTION_PLAN_MEAL" || lower === "plan a meal" || lower === "plan meal") {
+  // Entry via button or text
+  if (postback === "ACTION_PLAN_MEAL" || lower.includes("plan a meal") || lower.includes("plan meal")) {
     state.step = "ASK_GOAL";
     await sendWhatsAppMessage(
       buildButtons(to, "Let's personalise your meal plan. Choose your goal:", [
@@ -49,11 +53,10 @@ export async function handleMealPlanIncoming({ from, userMsg }: { from: string; 
     return;
   }
 
-  // ASK_GOAL
+  // ---- ASK_GOAL ----
   if (state.step === "ASK_GOAL") {
     if (postback?.startsWith("GOAL_") || lower.includes("weight") || lower.includes("muscle") || lower.includes("maintain")) {
-      const val = (postback?.replace("GOAL_", "") || (lower.includes("weight") ? "weight_loss" : lower.includes("muscle") ? "muscle_gain" : "maintenance")).replace(/_/g, " ");
-      state.goal = val;
+      state.goal = postback?.replace("GOAL_", "") || (lower.includes("weight") ? "weight_loss" : lower.includes("muscle") ? "muscle_gain" : "maintenance");
       state.step = "ASK_DIET";
       await sendWhatsAppMessage(
         buildButtons(to, "Choose diet type:", [
@@ -68,11 +71,10 @@ export async function handleMealPlanIncoming({ from, userMsg }: { from: string; 
     return;
   }
 
-  // ASK_DIET
+  // ---- ASK_DIET ----
   if (state.step === "ASK_DIET") {
     if (postback?.startsWith("DIET_") || lower.includes("veg") || lower.includes("non") || lower.includes("egg")) {
-      const val = postback?.replace("DIET_", "") || (lower.includes("non") ? "non-veg" : lower.includes("egg") ? "eggetarian" : "veg");
-      state.diet = val;
+      state.diet = postback?.replace("DIET_", "") || (lower.includes("non") ? "non-veg" : lower.includes("egg") ? "eggetarian" : "veg");
       state.step = "ASK_MEALS";
       await sendWhatsAppMessage(
         buildButtons(to, "Meals per day:", [
@@ -87,36 +89,13 @@ export async function handleMealPlanIncoming({ from, userMsg }: { from: string; 
     return;
   }
 
-  // ASK_MEALS
+  // ---- ASK_MEALS ----
   if (state.step === "ASK_MEALS") {
-    if (postback?.startsWith("MEALS_") || ["2","3","4"].includes(lower)) {
-      const meals = postback?.replace("MEALS_", "") || lower;
-      const n = parseInt(meals, 10) || 3;
-      state.mealsPerDay = n;
-      // generate plan
-      const planText = await generateMealPlanAI(state.goal!, state.diet!, state.mealsPerDay);
-      state.planText = planText;
-      state.step = "SHOW_PLAN";
-
-      // Save draft plan in DB (not subscribed)
-      await saveUserMealPlan(to, {
-        goal: state.goal!,
-        diet: state.diet!,
-        mealsPerDay: state.mealsPerDay,
-        planText,
-        priceWeekly: 399,
-        priceMonthly: 999,
-      });
-
+    if (postback?.startsWith("MEALS_") || ["2", "3", "4"].includes(lower)) {
+      state.mealsPerDay = parseInt(postback?.replace("MEALS_", "") || lower, 10);
+      state.step = "ASK_ALLERGIES";
       await sendWhatsAppMessage(
-        buildButtons(
-          to,
-          `Your plan (brief):\n\n${planText}\n\nWeekly: ₹399 • Monthly: ₹999\n\nSubscribe to activate reminders?`,
-          [
-            { id: "SUB_subscribe", title: "Subscribe" },
-            { id: "SUB_later", title: "Not now" },
-          ]
-        )
+        buildText(to, "Do you have any allergies or food restrictions? (Type 'none' if no restrictions)")
       );
       return;
     }
@@ -124,14 +103,61 @@ export async function handleMealPlanIncoming({ from, userMsg }: { from: string; 
     return;
   }
 
-  // SUBSCRIBE
+  // ---- ASK_ALLERGIES ----
+  if (state.step === "ASK_ALLERGIES") {
+    state.allergies = userMsg.trim();
+    state.step = "ASK_CUISINE";
+    await sendWhatsAppMessage(
+      buildText(to, "Do you have preferred cuisines or foods you dislike? (Type 'no preference' if none)")
+    );
+    return;
+  }
+
+  // ---- ASK_CUISINE ----
+  if (state.step === "ASK_CUISINE") {
+    state.cuisine = userMsg.trim();
+
+    // Generate plan using OpenAI
+    const planText = await generateMealPlanAI({
+      goal: state.goal!,
+      diet: state.diet!,
+      mealsPerDay: state.mealsPerDay!,
+      allergies: state.allergies!,
+      cuisine: state.cuisine!,
+    });
+
+    state.planText = planText;
+    state.step = "SHOW_PLAN";
+
+    await saveUserMealPlan(to, {
+      goal: state.goal!,
+      diet: state.diet!,
+      mealsPerDay: state.mealsPerDay!,
+      allergies: state.allergies!,
+      cuisine: state.cuisine!,
+      planText,
+      priceWeekly: 399,
+      priceMonthly: 999,
+    });
+
+    await sendWhatsAppMessage(
+      buildButtons(
+        to,
+        `Your plan (brief):\n\n${planText}\n\nWeekly: ₹399 • Monthly: ₹999\n\nSubscribe to activate reminders?`,
+        [
+          { id: "SUB_subscribe", title: "Subscribe" },
+          { id: "SUB_later", title: "Not now" },
+        ]
+      )
+    );
+    return;
+  }
+
+  // ---- SUBSCRIBE / SHOW_PLAN ----
   if (state.step === "SHOW_PLAN") {
     if (postback === "SUB_subscribe" || lower.includes("subscribe")) {
-      // Here you should generate a payment link (Razorpay etc) using your /api/payment route.
-      // For now, instruct user and mark waiting for payment.
       state.step = "WAITING_PAYMENT";
       await sendWhatsAppMessage(buildText(to, "Great — create payment using the pay link. After successful payment the plan will be activated."));
-      // Ideally return a generated payment link via your existing /api/payment using saved plan record.
       return;
     }
     if (postback === "SUB_later" || lower.includes("not now")) {
@@ -143,29 +169,59 @@ export async function handleMealPlanIncoming({ from, userMsg }: { from: string; 
     return;
   }
 
-  // WAITING_PAYMENT — we wait for webhook to call activate meal reminders
+  // ---- WAITING_PAYMENT ----
   if (state.step === "WAITING_PAYMENT") {
     await sendWhatsAppMessage(buildText(to, "If you have paid, reply 'paid' and we will check."));
     if (lower === "paid") {
-      // If you want, you can try to lookup payment via DB and validate — minimal example:
       await sendWhatsAppMessage(buildText(to, "Thanks. We will verify and enable reminders if payment is confirmed."));
     }
     return;
   }
 
-  // default fallback
+  // ---- Default fallback ----
   await sendWhatsAppMessage(buildText(to, "Type 'plan a meal' to start a personalised plan or tap the Plan a Meal button."));
 }
 
-// Called by payment webhook after verifying payment for the user
-export async function activateMealPlanForUser(userId: string) {
-  // mark subscription active
-  const plan = await activateSubscription(userId);
-  // default reminders (can be prompted to user later)
-  await saveMealReminder(userId, { breakfast: "09:00", lunch: "13:00", dinner: "20:00" });
-  // send confirmation
-  await sendWhatsAppMessage(buildText(userId, "Your meal plan subscription is active. We will start sending reminders."));
-  // clear in-memory state
-  userMealStates.delete(userId);
+// ---- OpenAI meal plan generator ----
+export async function generateMealPlanAI({
+  goal,
+  diet,
+  mealsPerDay,
+  allergies,
+  cuisine,
+}: {
+  goal: string;
+  diet: string;
+  mealsPerDay: number;
+  allergies: string;
+  cuisine: string;
+}) {
+  const prompt = `
+You are a professional nutritionist.
+Create a ${mealsPerDay}-meal per day plan for someone with goal: ${goal}, diet: ${diet}.
+Allergies/restrictions: ${allergies}.
+Preferred/disliked cuisines: ${cuisine}.
+Format as:
+Breakfast: ...
+Snack: ...
+Lunch: ...
+Snack: ...
+Dinner: ...
+Provide approximate calories per meal and total daily calories.
+Keep it concise and practical.
+  `;
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{ role: "user", content: prompt }],
+    temperature: 0.7,
+  });
+  return res.choices[0]?.message?.content?.trim() || "Unable to generate plan.";
 }
 
+// ---- Activate subscription after payment ----
+export async function activateMealPlanForUser(userId: string) {
+  await activateSubscription(userId);
+  await saveMealReminder(userId, { breakfast: "09:00", lunch: "13:00", dinner: "20:00" });
+  await sendWhatsAppMessage(buildText(userId, "Your meal plan subscription is active. We will start sending reminders."));
+  userMealStates.delete(userId);
+}
