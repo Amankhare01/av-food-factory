@@ -25,7 +25,8 @@ type MealState = {
   planText?: string;
 };
 
-const userMealStates = new Map<string, MealState>();
+export const userMealStates = new Map<string, MealState>();
+
 
 export async function handleMealPlanIncoming({ from, userMsg }: { from: string; userMsg: string }) {
   const to = (from || "").replace("+", "");

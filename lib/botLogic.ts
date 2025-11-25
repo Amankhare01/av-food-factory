@@ -1,5 +1,5 @@
 
-import { handleMealPlanIncoming } from "./mealPlanBot";
+import { userMealStates, handleMealPlanIncoming } from "./mealPlanBot";
 import connectDB from "./mongodb";
 import { Order } from "@/models/Order";
 
@@ -341,6 +341,14 @@ export async function handleIncoming({ from, userMsg }: { from: string; userMsg:
     }
   }
 
+
+
+// 0) ROUTE to MealPlan bot if user is in that flow
+if (userMealStates.has(to)) {
+  await handleMealPlanIncoming({ from: to, userMsg });
+  return;
+}
+
   // 1) INIT
   if (state.step === "INIT") {
     const starts = ["hi", "hii", "hello", "hey", "hlo", "start", "menu", "order"];
@@ -356,13 +364,7 @@ export async function handleIncoming({ from, userMsg }: { from: string; userMsg:
     await sendWhatsAppMessage(buildText(to, "Type *hi* to start your order."));
     return;
   }
-  // inside handleIncoming, near top where you parse postback:
-  if (postback === "ACTION_PLAN_MEAL") {
-    // hand off to meal plan bot
-    await handleMealPlanIncoming({ from: to, userMsg: postback });
-    // keep user state for ordering unchanged (so they can return to ordering later)
-    return;
-  }
+ 
 
   // 2) CATEGORY
   if (state.step === "AWAITING_CATEGORY") {
