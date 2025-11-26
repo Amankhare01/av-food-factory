@@ -7,42 +7,45 @@ import { saveUserMealPlan, saveMealReminder, activateSubscription } from "./meal
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // --------------------------------------------------
-// SAFE SENDER (splits long text)
+// UNIVERSAL SAFE SENDER (splits messages >900 chars)
 // --------------------------------------------------
 async function sendSafeMessage(payload: any) {
-  if (payload?.text?.body) {
+  if (payload.text && payload.text.body) {
     const text = payload.text.body;
-
-    if (text.length <= 900) return sendWhatsAppMessage(payload);
-
-    const chunks = [];
-    for (let i = 0; i < text.length; i += 900) {
-      chunks.push(text.slice(i, i + 900));
+    if (text.length <= 900) {
+      return sendWhatsAppMessage(payload);
     }
 
-    for (const chunk of chunks) {
+    // split into chunks of 900 chars
+    for (let i = 0; i < text.length; i += 900) {
+      const chunk = text.substring(i, i + 900);
       await sendWhatsAppMessage(buildText(payload.to, chunk));
     }
     return;
   }
 
+  // if not text (buttons/carousel) — send normally
   return sendWhatsAppMessage(payload);
 }
 
 // --------------------------------------------------
-// STATE MACHINE
+// USER STATE MACHINE
 // --------------------------------------------------
+
 type MealStep =
   | "START"
   | "ASK_GOAL"
   | "ASK_DIET"
   | "ASK_MEALS"
   | "ASK_ALLERGIES"
-  | "ASK_ALLERGIES_MANUAL"
-  | "ASK_CUISINE_CHOICE"
-  | "ASK_CUISINE_MANUAL"
+  | "ASK_CUISINE"
+  | "ASK_WEIGHT"
+  | "ASK_HEIGHT"
+  | "ASK_AGE"
+  | "ASK_ACTIVITY"
   | "SHOW_PLAN"
-  | "WAITING_PAYMENT";
+  | "WAITING_PAYMENT"
+  | "ACTIVE";
 
 type MealState = {
   step: MealStep;
@@ -51,41 +54,31 @@ type MealState = {
   mealsPerDay?: number;
   allergies?: string;
   cuisine?: string;
+  weight?: number;
+  height?: number;
+  age?: number;
+  activity?: string;
   planText?: string;
 };
 
 export const userMealStates = new Map<string, MealState>();
 
 // --------------------------------------------------
-// MAIN ENTRY
+// MAIN HANDLER
 // --------------------------------------------------
-export async function handleMealPlanIncoming({
-  from,
-  userMsg,
-}: {
-  from: string;
-  userMsg: string;
-}) {
+export async function handleMealPlanIncoming({ from, userMsg }: { from: string; userMsg: string }) {
   const to = (from || "").replace("+", "");
   if (!userMealStates.has(to)) userMealStates.set(to, { step: "START" });
-
   const state = userMealStates.get(to)!;
+  const lower = (userMsg || "").trim().toLowerCase();
+  const isPostback = userMsg.startsWith("__POSTBACK__:");
+  const postback = isPostback ? userMsg.replace("__POSTBACK__:", "") : "";
 
-  const clean = (userMsg || "").trim();
-  const lower = clean.toLowerCase();
-  const isPostback = clean.startsWith("__POSTBACK__:");
-  const postback = isPostback ? clean.replace("__POSTBACK__:", "") : "";
-
-  // USER ENTRY
-  if (
-    postback === "ACTION_PLAN_MEAL" ||
-    lower.includes("plan meal") ||
-    lower.includes("plan a meal")
-  ) {
+  // ENTRY
+  if (postback === "ACTION_PLAN_MEAL" || lower.includes("plan a meal") || lower.includes("plan meal")) {
     state.step = "ASK_GOAL";
-
     await sendSafeMessage(
-      buildButtons(to, "Choose your goal:", [
+      buildButtons(to, "Let's personalise your meal plan. Choose your goal:", [
         { id: "GOAL_weight_loss", title: "Weight Loss" },
         { id: "GOAL_muscle_gain", title: "Muscle Gain" },
         { id: "GOAL_maintenance", title: "Maintenance" },
@@ -94,201 +87,202 @@ export async function handleMealPlanIncoming({
     return;
   }
 
-  // --------------------------------------------------
-  // GOAL
-  // --------------------------------------------------
-  if (state.step === "ASK_GOAL") {
-    if (postback.startsWith("GOAL_")) {
-      state.goal = postback.replace("GOAL_", "");
-      state.step = "ASK_DIET";
+  // ASK_GOAL
+  if (state.step === "ASK_GOAL" && postback?.startsWith("GOAL_")) {
+    state.goal = postback.replace("GOAL_", "");
+    state.step = "ASK_DIET";
 
-      await sendSafeMessage(
-        buildButtons(to, "Choose diet type:", [
-          { id: "DIET_veg", title: "Vegetarian" },
-          { id: "DIET_nonveg", title: "Non-Veg" },
-          { id: "DIET_egg", title: "Eggetarian" },
-        ])
-      );
-    }
+    await sendSafeMessage(
+      buildButtons(to, "Choose diet type:", [
+        { id: "DIET_veg", title: "Vegetarian" },
+        { id: "DIET_nonveg", title: "Non-Veg" },
+        { id: "DIET_eggetarian", title: "Eggetarian" },
+      ])
+    );
     return;
   }
 
-  // --------------------------------------------------
-  // DIET
-  // --------------------------------------------------
-  if (state.step === "ASK_DIET") {
-    if (postback.startsWith("DIET_")) {
-      state.diet = postback.replace("DIET_", "");
-      state.step = "ASK_MEALS";
+  // ASK_DIET
+  if (state.step === "ASK_DIET" && postback?.startsWith("DIET_")) {
+    state.diet = postback.replace("DIET_", "");
+    state.step = "ASK_MEALS";
 
-      await sendSafeMessage(
-        buildButtons(to, "Meals per day:", [
-          { id: "MEALS_2", title: "2 Meals" },
-          { id: "MEALS_3", title: "3 Meals" },
-          { id: "MEALS_4", title: "4 Meals" },
-        ])
-      );
-    }
+    await sendSafeMessage(
+      buildButtons(to, "Meals per day:", [
+        { id: "MEALS_2", title: "2 Meals" },
+        { id: "MEALS_3", title: "3 Meals" },
+        { id: "MEALS_4", title: "4 Meals" },
+      ])
+    );
     return;
   }
 
-  // --------------------------------------------------
-  // MEALS PER DAY
-  // --------------------------------------------------
-  if (state.step === "ASK_MEALS") {
-    if (postback.startsWith("MEALS_")) {
-      state.mealsPerDay = parseInt(postback.replace("MEALS_", ""), 10);
-      state.step = "ASK_ALLERGIES";
+  // ASK_MEALS
+  if (state.step === "ASK_MEALS" && postback?.startsWith("MEALS_")) {
+    state.mealsPerDay = parseInt(postback.replace("MEALS_", ""), 10);
+    state.step = "ASK_ALLERGIES";
 
-      await sendSafeMessage(
-        buildButtons(to, "Any allergies?", [
-          { id: "ALLERGY_none", title: "None" },
-          { id: "ALLERGY_common", title: "Common List" },
-          { id: "ALLERGY_manual", title: "Type Manually" },
-        ])
-      );
-    }
+    await sendSafeMessage(
+      buildButtons(to, "Any allergies?", [
+        { id: "ALLERGIES_none", title: "None" },
+        { id: "ALLERGIES_common", title: "Common Allergies" },
+        { id: "ALLERGIES_custom", title: "Type Manually" },
+      ])
+    );
     return;
   }
 
-  // --------------------------------------------------
-  // ALLERGIES
-  // --------------------------------------------------
+  // ASK_ALLERGIES
   if (state.step === "ASK_ALLERGIES") {
-    if (postback === "ALLERGY_none") {
-      state.allergies = "None";
-      state.step = "ASK_CUISINE_CHOICE";
-    } else if (postback === "ALLERGY_common") {
-      state.allergies = "Dairy, gluten, peanuts";
-      state.step = "ASK_CUISINE_CHOICE";
-    } else if (postback === "ALLERGY_manual") {
-      state.step = "ASK_ALLERGIES_MANUAL";
-      await sendSafeMessage(buildText(to, "Type your allergies:"));
+    if (postback === "ALLERGIES_none") state.allergies = "None";
+    else if (postback === "ALLERGIES_common") state.allergies = "Dairy, Gluten, Peanuts";
+    else if (postback === "ALLERGIES_custom") state.allergies = userMsg;
+    else state.allergies = userMsg;
+
+    state.step = "ASK_CUISINE";
+    await sendSafeMessage(
+      buildButtons(to, "Preferred cuisine?", [
+        { id: "CUS_indian", title: "Indian" },
+        { id: "CUS_continental", title: "Continental" },
+        { id: "CUS_no_pref", title: "No preference" },
+        { id: "CUS_custom", title: "Type manually" },
+      ])
+    );
+    return;
+  }
+
+  // ASK_CUISINE
+  if (state.step === "ASK_CUISINE") {
+    if (postback?.startsWith("CUS_")) {
+      if (postback === "CUS_custom") state.cuisine = userMsg;
+      else if (postback === "CUS_no_pref") state.cuisine = "No preference";
+      else state.cuisine = postback.replace("CUS_", "");
+    } else state.cuisine = userMsg;
+
+    state.step = "ASK_WEIGHT";
+    await sendSafeMessage(buildText(to, "Enter your weight in kg (e.g., 70):"));
+    return;
+  }
+
+  // ASK_WEIGHT
+  if (state.step === "ASK_WEIGHT") {
+    const w = parseFloat(userMsg);
+    if (!isNaN(w)) state.weight = w;
+    state.step = "ASK_HEIGHT";
+    await sendSafeMessage(buildText(to, "Enter your height in cm (e.g., 175):"));
+    return;
+  }
+
+  // ASK_HEIGHT
+  if (state.step === "ASK_HEIGHT") {
+    const h = parseFloat(userMsg);
+    if (!isNaN(h)) state.height = h;
+    state.step = "ASK_AGE";
+    await sendSafeMessage(buildText(to, "Enter your age in years:"));
+    return;
+  }
+
+  // ASK_AGE
+  if (state.step === "ASK_AGE") {
+    const a = parseInt(userMsg, 10);
+    if (!isNaN(a)) state.age = a;
+    state.step = "ASK_ACTIVITY";
+
+    await sendSafeMessage(
+      buildButtons(to, "Select activity level:", [
+        { id: "ACT_low", title: "Low" },
+        { id: "ACT_moderate", title: "Moderate" },
+        { id: "ACT_high", title: "High" },
+      ])
+    );
+    return;
+  }
+
+  // ASK_ACTIVITY
+  if (state.step === "ASK_ACTIVITY") {
+    if (postback?.startsWith("ACT_")) state.activity = postback.replace("ACT_", "");
+
+    // GENERATE PLAN
+    const planText = await generateMealPlanAI({
+      goal: state.goal!,
+      diet: state.diet!,
+      mealsPerDay: state.mealsPerDay!,
+      allergies: state.allergies!,
+      cuisine: state.cuisine!,
+      weight: state.weight!,
+      height: state.height!,
+      age: state.age!,
+      activity: state.activity!,
+    });
+
+    state.planText = planText;
+    state.step = "SHOW_PLAN";
+
+    await saveUserMealPlan(to, {
+      goal: state.goal!,
+      diet: state.diet!,
+      mealsPerDay: state.mealsPerDay!,
+      allergies: state.allergies!,
+      cuisine: state.cuisine!,
+      planText,
+      priceWeekly: 399,
+      priceMonthly: 999,
+    });
+
+    // Send full plan in safe text
+    await sendSafeMessage(buildText(to, `Here is your personalised meal plan:\n\n${planText}`));
+
+    // Send buttons separately (<1024 chars)
+    await sendSafeMessage(
+      buildButtons(to, "Weekly: ₹399 | Monthly: ₹999\nSubscribe for daily reminders?", [
+        { id: "SUB_subscribe", title: "Subscribe" },
+        { id: "SUB_later", title: "Not now" },
+      ])
+    );
+    return;
+  }
+
+  // SHOW_PLAN
+  if (state.step === "SHOW_PLAN") {
+    if (postback === "SUB_subscribe") {
+      state.step = "WAITING_PAYMENT";
+      await sendSafeMessage(buildText(to, "Great! Click the pay link and reply 'PAID' to activate reminders."));
       return;
-    } else {
-      state.allergies = clean;
-      state.step = "ASK_CUISINE_CHOICE";
     }
-
-    await sendSafeMessage(
-      buildButtons(to, "Preferred cuisine:", [
-        { id: "CUS_indian", title: "Indian" },
-        { id: "CUS_continental", title: "Continental" },
-        { id: "CUS_manual", title: "Type Manually" },
-      ])
-    );
-    return;
-  }
-
-  if (state.step === "ASK_ALLERGIES_MANUAL") {
-    state.allergies = clean;
-    state.step = "ASK_CUISINE_CHOICE";
-
-    await sendSafeMessage(
-      buildButtons(to, "Preferred cuisine:", [
-        { id: "CUS_indian", title: "Indian" },
-        { id: "CUS_continental", title: "Continental" },
-        { id: "CUS_manual", title: "Type Manually" },
-      ])
-    );
-    return;
-  }
-
-  // --------------------------------------------------
-  // CUISINE
-  // --------------------------------------------------
-  if (state.step === "ASK_CUISINE_CHOICE") {
-    if (postback.startsWith("CUS_")) {
-      if (postback === "CUS_manual") {
-        state.step = "ASK_CUISINE_MANUAL";
-        await sendSafeMessage(buildText(to, "Type your preferred cuisine:"));
-        return;
-      } else {
-        state.cuisine = postback.replace("CUS_", "");
-      }
-    } else {
-      state.cuisine = clean;
+    if (postback === "SUB_later") {
+      userMealStates.delete(to);
+      await sendSafeMessage(buildText(to, "No problem! Type *Plan a meal* anytime."));
+      return;
     }
-
-    // proceed to AI
-    await generateSendPlan(to, state);
-    return;
   }
 
-  if (state.step === "ASK_CUISINE_MANUAL") {
-    state.cuisine = clean;
-
-    await generateSendPlan(to, state);
-    return;
-  }
-
-  // --------------------------------------------------
-  // PAYMENT
-  // --------------------------------------------------
+  // WAITING_PAYMENT
   if (state.step === "WAITING_PAYMENT") {
     if (lower === "paid") {
-      await sendSafeMessage(buildText(to, "Payment verified. Activating your reminders."));
-      await activateMealPlanForUser(to);
+      await sendSafeMessage(buildText(to, "Payment received. Activating your reminders..."));
     }
     return;
   }
 
-  // DEFAULT
-  await sendSafeMessage(buildText(to, "Type Plan a meal to start."));
+  // fallback
+  await sendSafeMessage(buildText(to, "Type *Plan a meal* to begin your personalised plan."));
 }
 
 // --------------------------------------------------
-// Generate meal plan + save in DB
+// AI MEAL PLAN GENERATOR
 // --------------------------------------------------
-async function generateSendPlan(to: string, state: MealState) {
-  const planText = await generateMealPlanAI({
-    goal: state.goal!,
-    diet: state.diet!,
-    mealsPerDay: state.mealsPerDay!,
-    allergies: state.allergies!,
-    cuisine: state.cuisine!,
-  });
-
-  state.planText = planText;
-  state.step = "SHOW_PLAN";
-
-  await saveUserMealPlan(to, {
-    goal: state.goal!,
-    diet: state.diet!,
-    mealsPerDay: state.mealsPerDay!,
-    planText,
-    priceWeekly: 399,
-    priceMonthly: 999,
-  });
-
-  await sendSafeMessage(
-    buildButtons(
-      to,
-      `Here is your personalised meal plan:\n\n${planText}\n\nWeekly: ₹399 | Monthly: ₹999\nSubscribe for daily reminders?`,
-      [
-        { id: "SUB_yes", title: "Subscribe" },
-        { id: "SUB_no", title: "Not now" },
-      ]
-    )
-  );
-}
-
-// --------------------------------------------------
-// AI GENERATION
-// --------------------------------------------------
-export async function generateMealPlanAI({
-  goal,
-  diet,
-  mealsPerDay,
-  allergies,
-  cuisine,
-}: any) {
+export async function generateMealPlanAI(data: any) {
   const prompt = `
-Create a ${mealsPerDay}-meal plan.
-Goal: ${goal}
-Diet: ${diet}
-Allergies: ${allergies}
-Cuisine: ${cuisine}
+You are a professional nutritionist.
+Create a ${data.mealsPerDay}-meal plan for:
+Goal: ${data.goal}
+Diet: ${data.diet}
+Weight: ${data.weight}kg
+Height: ${data.height}cm
+Age: ${data.age} years
+Activity level: ${data.activity}
+Allergies: ${data.allergies}
+Cuisine: ${data.cuisine}
 
 Format:
 Breakfast:
@@ -296,8 +290,8 @@ Snack:
 Lunch:
 Snack:
 Dinner:
-Include calories per meal and total.
-Practical and concise.
+Include calories per meal + total.
+Keep it concise and practical.
 `;
 
   const res = await openai.chat.completions.create({
@@ -306,10 +300,7 @@ Practical and concise.
     temperature: 0.6,
   });
 
-  return (
-    res.choices?.[0]?.message?.content?.trim() ||
-    "Unable to generate plan."
-  );
+  return res.choices?.[0]?.message?.content?.trim() ?? "Unable to generate plan.";
 }
 
 // --------------------------------------------------
@@ -317,12 +308,7 @@ Practical and concise.
 // --------------------------------------------------
 export async function activateMealPlanForUser(userId: string) {
   await activateSubscription(userId);
-  await saveMealReminder(userId, {
-    breakfast: "09:00",
-    lunch: "13:00",
-    dinner: "20:00",
-  });
-
-  await sendSafeMessage(buildText(userId, "Your meal plan subscription is now active."));
+  await saveMealReminder(userId, { breakfast: "09:00", lunch: "13:00", dinner: "20:00" });
+  await sendSafeMessage(buildText(userId, "Your meal plan subscription is now active!"));
   userMealStates.delete(userId);
 }
