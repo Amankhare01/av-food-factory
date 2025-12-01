@@ -282,7 +282,7 @@ Height: ${data.height}cm
 Age: ${data.age} years
 Activity level: ${data.activity}
 Allergies: ${data.allergies}
-Cuisine: ${data.cuisine}
+Cuisine: ${data.cuisine}             
 
 Format:
 Breakfast:
@@ -303,9 +303,7 @@ Keep it concise and practical.
   return res.choices?.[0]?.message?.content?.trim() ?? "Unable to generate plan.";
 }
 
-// --------------------------------------------------
-// ACTIVATE SUBSCRIPTION
-// --------------------------------------------------
+
 export async function activateMealPlanForUser(userId: string) {
   await activateSubscription(userId);
   await saveMealReminder(userId, { breakfast: "09:00", lunch: "13:00", dinner: "20:00" });

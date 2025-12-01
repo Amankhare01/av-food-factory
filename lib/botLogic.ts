@@ -593,6 +593,59 @@ if (postback === "ACTION_PLAN_MEAL") {
 }
 
 // ---- Payment confirmation handler (called by your Razorpay webhook route) ----
+// export async function handlePaymentUpdate(mongoOrderId: string, paymentId: string) {
+//   try {
+//     console.log(" [Bot] Payment update received for order:", mongoOrderId);
+
+//     await connectDB();
+//     const order = await Order.findByIdAndUpdate(
+//       mongoOrderId,
+//       { paid: true, status: "paid", paymentId },
+//       { new: true }
+//     );
+
+//     if (!order) {
+//       console.error(" [Bot] Order not found:", mongoOrderId);
+//       return;
+//     }
+
+//     //  Send receipt to WhatsApp sender (order.from), not delivery phone
+//     const sendTo = (order.from || "").replace("+", "");
+//     if (!sendTo) {
+//       console.error(" [Bot] Missing `from` (WhatsApp number) on order:", mongoOrderId);
+//       return;
+//     }
+
+//     const receipt =
+//       ` *AV Food Factory Receipt*\n\n` +
+//       ` Item: ${order.itemName}\n` +
+//       ` Qty: ${order.qty}\n` +
+//       ` Total: ₹${order.total}\n` +
+//       ` Payment ID: ${order.paymentId}\n` +
+//       ` Status: Confirmed\n` +
+//       ` ${new Date().toLocaleString("en-IN")}\n\n` +
+//       `Thank you for ordering!`;
+
+//     await sendWhatsAppMessage({ messaging_product: "whatsapp", to: sendTo, type: "text", text: { body: receipt } });
+
+//     const adminMsg =
+//       ` *Paid Order Confirmed*\n` +
+//       ` Customer (WA): ${sendTo}\n` +
+//       ` Delivery Phone: ${order.phone || "—"}\n` +
+//       ` Item: ${order.itemName}\n` +
+//       ` Qty: ${order.qty}\n` +
+//       ` Total: ₹${order.total}\n` +
+//       ` Payment ID: ${order.paymentId}\n` +
+//       ` ${new Date().toLocaleString("en-IN")}`;
+
+//     await sendWhatsAppMessage({ messaging_product: "whatsapp", to: ADMIN_PHONE, type: "text", text: { body: adminMsg } });
+
+//     console.log(" [Bot] Payment update processed successfully");
+//   } catch (err) {
+//     console.error(" [Bot] Payment update error:", err);
+//   }
+// }
+
 export async function handlePaymentUpdate(mongoOrderId: string, paymentId: string) {
   try {
     console.log(" [Bot] Payment update received for order:", mongoOrderId);
@@ -609,13 +662,13 @@ export async function handlePaymentUpdate(mongoOrderId: string, paymentId: strin
       return;
     }
 
-    //  Send receipt to WhatsApp sender (order.from), not delivery phone
     const sendTo = (order.from || "").replace("+", "");
     if (!sendTo) {
-      console.error(" [Bot] Missing `from` (WhatsApp number) on order:", mongoOrderId);
+      console.error(" [Bot] Missing `from` on order:", mongoOrderId);
       return;
     }
 
+    // --- SEND RECEIPT ---
     const receipt =
       ` *AV Food Factory Receipt*\n\n` +
       ` Item: ${order.itemName}\n` +
@@ -626,8 +679,45 @@ export async function handlePaymentUpdate(mongoOrderId: string, paymentId: strin
       ` ${new Date().toLocaleString("en-IN")}\n\n` +
       `Thank you for ordering!`;
 
-    await sendWhatsAppMessage({ messaging_product: "whatsapp", to: sendTo, type: "text", text: { body: receipt } });
+    await sendWhatsAppMessage({
+      messaging_product: "whatsapp",
+      to: sendTo,
+      type: "text",
+      text: { body: receipt },
+    });
 
+    // -------------------------------------------------
+    // 🔥 SEND LIVE TRACKING LINK TO USER (ADDED BY ME)
+    // -------------------------------------------------
+    try {
+      const crypto = await import("crypto");
+      const trackingToken = crypto.randomBytes(32).toString("hex");
+
+      order.trackingToken = trackingToken;
+      order.deliveryStatus = "assigned";
+      await order.save();
+
+      const trackingUrl = `${process.env.TRACK_BASE_URL}/track/${order._id}?t=${trackingToken}`;
+
+      await sendWhatsAppMessage({
+        messaging_product: "whatsapp",
+        to: sendTo,
+        type: "text",
+        text: {
+          preview_url: true,
+          body:
+            `🚚 *Order Confirmed!*\n` +
+            `Track your delivery live:\n${trackingUrl}`
+        }
+      });
+
+      console.log(" [Bot] Sent tracking link:", trackingUrl);
+    } catch (err) {
+      console.error(" [Bot] Tracking link error:", err);
+    }
+    // -------------------------------------------------
+
+    // Notify admin
     const adminMsg =
       ` *Paid Order Confirmed*\n` +
       ` Customer (WA): ${sendTo}\n` +
@@ -638,7 +728,12 @@ export async function handlePaymentUpdate(mongoOrderId: string, paymentId: strin
       ` Payment ID: ${order.paymentId}\n` +
       ` ${new Date().toLocaleString("en-IN")}`;
 
-    await sendWhatsAppMessage({ messaging_product: "whatsapp", to: ADMIN_PHONE, type: "text", text: { body: adminMsg } });
+    await sendWhatsAppMessage({
+      messaging_product: "whatsapp",
+      to: ADMIN_PHONE,
+      type: "text",
+      text: { body: adminMsg }
+    });
 
     console.log(" [Bot] Payment update processed successfully");
   } catch (err) {
