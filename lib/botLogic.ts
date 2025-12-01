@@ -689,32 +689,27 @@ export async function handlePaymentUpdate(mongoOrderId: string, paymentId: strin
     // -------------------------------------------------
     // 🔥 SEND LIVE TRACKING LINK TO USER (ADDED BY ME)
     // -------------------------------------------------
-    try {
-      const crypto = await import("crypto");
-      const trackingToken = crypto.randomBytes(32).toString("hex");
+    const crypto = await import("crypto");
+const trackingToken = crypto.randomBytes(32).toString("hex");
 
-      order.trackingToken = trackingToken;
-      order.deliveryStatus = "assigned";
-      await order.save();
+order.trackingToken = trackingToken;
+order.deliveryStatus = "assigned";
+await order.save();
 
-      const trackingUrl = `${process.env.TRACK_BASE_URL}/track/${order._id}?t=${trackingToken}`;
+const trackingUrl = `${process.env.TRACK_BASE_URL}/track/${order._id}?t=${trackingToken}`;
 
-      await sendWhatsAppMessage({
-        messaging_product: "whatsapp",
-        to: sendTo,
-        type: "text",
-        text: {
-          preview_url: true,
-          body:
-            `🚚 *Order Confirmed!*\n` +
-            `Track your delivery live:\n${trackingUrl}`
-        }
-      });
+await sendWhatsAppMessage({
+  messaging_product: "whatsapp",
+  to: sendTo,
+  type: "text",
+  text: {
+    preview_url: true,
+    body:
+      `🚚 *Order Confirmed!*\n` +
+      `Track your delivery live:\n${trackingUrl}`
+  }
+});
 
-      console.log(" [Bot] Sent tracking link:", trackingUrl);
-    } catch (err) {
-      console.error(" [Bot] Tracking link error:", err);
-    }
     // -------------------------------------------------
 
     // Notify admin
