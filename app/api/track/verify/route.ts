@@ -9,28 +9,32 @@ export async function GET(req: Request) {
   const orderId = searchParams.get("orderId");
   const token = searchParams.get("t");
 
-  if (!orderId || !token)
+  if (!orderId || !token) {
     return NextResponse.json(
-      { error: "Missing parameters" },
+      { ok: false, error: "Missing parameters" },
       { status: 400 }
     );
+  }
 
+  // Customer token must match trackingToken
   const order = await Order.findOne({
-  _id: orderId,
-  driverTrackingToken: token
-});
+    _id: orderId,
+    trackingToken: token,     // FIXED HERE
+  });
 
-  if (!order)
+  if (!order) {
     return NextResponse.json(
-      { error: "Invalid or expired link" },
+      { ok: false, error: "Invalid or expired link" },
       { status: 401 }
     );
+  }
 
   return NextResponse.json({
     ok: true,
     order: {
-      dropoff: order.dropoff,
-      deliveryStatus: order.deliveryStatus,
+      driverLocation: order.driverLocation || null,
+      dropoff: order.dropoff || null,
+      deliveryStatus: order.deliveryStatus || "assigned",
     },
   });
 }
