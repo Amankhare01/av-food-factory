@@ -1,6 +1,7 @@
 import connectDB from "@/lib/mongodb";
 import { Order } from "@/models/Order";
-import { locationChannels } from "../../driver/location/route";
+import { locationChannels } from "@/lib/locationChannels";
+
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

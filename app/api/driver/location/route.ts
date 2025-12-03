@@ -1,9 +1,7 @@
 import connectDB from "@/lib/mongodb";
 import Location from "@/models/Location";
 import { NextResponse } from "next/server";
-
-// Global memory event emitters per order
-const channels: Record<string, any[]> = {};
+import { locationChannels } from "@/lib/locationChannels";
 
 export async function POST(req: Request) {
   await connectDB();
@@ -19,7 +17,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Order ID required" }, { status: 400 });
   }
 
-  // Save location in DB
   const loc = await Location.create({
     driverId,
     orderId,
@@ -27,15 +24,12 @@ export async function POST(req: Request) {
     lng,
   });
 
-  // Notify SSE listeners (if any)
-  if (channels[orderId]) {
-    channels[orderId].forEach((res) => {
-      res.write(`data: ${JSON.stringify({ lat, lng, ts: loc.ts })}\n\n`);
+  // Notify any SSE listeners
+  if (locationChannels[orderId]) {
+    locationChannels[orderId].forEach((client) => {
+      client.write(`data: ${JSON.stringify({ lat, lng, ts: loc.ts })}\n\n`);
     });
   }
 
   return NextResponse.json({ ok: true });
 }
-
-// Export channel store so SSE route can access it
-export const locationChannels = channels;
