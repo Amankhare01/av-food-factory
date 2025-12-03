@@ -646,108 +646,192 @@ if (postback === "ACTION_PLAN_MEAL") {
 //   }
 // }
 
+// export async function handlePaymentUpdate(mongoOrderId: string, paymentId: string) {
+//   try {
+//     console.log(">>> HANDLE PAYMENT UPDATE RUNNING <<<");
+//     console.log("TRACK_BASE_URL =", process.env.TRACK_BASE_URL);
+//     console.log("DEFAULT_DRIVER_ID =", process.env.DEFAULT_DRIVER_ID);
+//     console.log("DEFAULT_DRIVER_PHONE =", process.env.DEFAULT_DRIVER_PHONE);
+
+//     await connectDB();
+//     console.log("Connected to DB");
+
+//     // 1) Update order paid
+//     const order = await Order.findByIdAndUpdate(
+//       mongoOrderId,
+//       { paid: true, status: "paid", paymentId },
+//       { new: true }
+//     );
+
+//     if (!order) {
+//       console.error("Order not found:", mongoOrderId);
+//       return;
+//     }
+
+//     const sendTo = (order.from || "").replace("+", "");
+
+//     // 2) SEND RECEIPT
+//     const receipt =
+//       ` *AV Food Factory Receipt*\n\n` +
+//       ` Item: ${order.itemName}\n` +
+//       ` Qty: ${order.qty}\n` +
+//       ` Total: ₹${order.total}\n` +
+//       ` Payment ID: ${paymentId}\n\n` +
+//       `Thank you for ordering!`;
+
+//     await sendWhatsAppMessage({
+//       messaging_product: "whatsapp",
+//       to: sendTo,
+//       type: "text",
+//       text: { body: receipt },
+//     });
+
+//     console.log("Receipt sent to:", sendTo);
+
+//     // -------------------------------
+//     // 3) CUSTOMER TRACKING LINK
+//     // -------------------------------
+//     const crypto = await import("crypto");
+//     const customerToken = crypto.randomBytes(32).toString("hex");
+
+//     order.trackingToken = customerToken;
+//     order.deliveryStatus = "assigned";
+//     await order.save();
+
+//     const customerTrackingUrl =
+//       `${process.env.TRACK_BASE_URL}/track/${order._id}?t=${customerToken}`;
+
+//     console.log("Customer tracking URL =", customerTrackingUrl);
+
+//     await sendWhatsAppMessage({
+//       messaging_product: "whatsapp",
+//       to: sendTo,
+//       type: "text",
+//       text: {
+//         preview_url: true,
+//         body:
+//           `🚚 *Order Confirmed!*\nYour live tracking link:\n${customerTrackingUrl}`,
+//       },
+//     });
+
+//     console.log("Customer tracking link sent");
+
+//     // -------------------------------
+//     // 4) DRIVER TRACKING LINK
+//     // -------------------------------
+//     const driverId = process.env.DEFAULT_DRIVER_ID!;
+//     const driverPhone = process.env.DEFAULT_DRIVER_PHONE!;
+
+//     const res = await fetch(`${process.env.TRACK_BASE_URL}/api/driver/send-link`, {
+//       method: "POST",
+//       headers: { "Content-Type": "application/json" },
+//       body: JSON.stringify({ orderId: order._id, driverId }),
+//     });
+
+//     const data = await res.json();
+//     console.log("Send-link response:", data);
+
+//     await sendWhatsAppMessage({
+//       messaging_product: "whatsapp",
+//       to: driverPhone,
+//       type: "text",
+//       text: {
+//         preview_url: true,
+//         body:
+//           `🚴 *New Delivery Assigned*\n` +
+//           `Order ID: ${order._id}\n\n` +
+//           `Start sharing your live location:\n${data.driverTrackingUrl}`,
+//       },
+//     });
+
+//     console.log("Driver link sent to:", driverPhone);
+
+//   } catch (err) {
+//     console.error("FINAL ERROR:", err);
+//   }
+// }
+
 export async function handlePaymentUpdate(mongoOrderId: string, paymentId: string) {
   try {
-    console.log(">>> HANDLE PAYMENT UPDATE RUNNING <<<");
-    console.log("TRACK_BASE_URL =", process.env.TRACK_BASE_URL);
-    console.log("DEFAULT_DRIVER_ID =", process.env.DEFAULT_DRIVER_ID);
-    console.log("DEFAULT_DRIVER_PHONE =", process.env.DEFAULT_DRIVER_PHONE);
-
+    console.log("STEP 1: Function started");
+    
     await connectDB();
-    console.log("Connected to DB");
+    console.log("STEP 2: Connected to DB");
 
-    // 1) Update order paid
     const order = await Order.findByIdAndUpdate(
       mongoOrderId,
       { paid: true, status: "paid", paymentId },
       { new: true }
     );
+    console.log("STEP 3: Order fetched");
 
     if (!order) {
-      console.error("Order not found:", mongoOrderId);
+      console.log("STOP: Order not found");
       return;
     }
 
     const sendTo = (order.from || "").replace("+", "");
+    console.log("STEP 4: Customer number =", sendTo);
 
-    // 2) SEND RECEIPT
-    const receipt =
-      ` *AV Food Factory Receipt*\n\n` +
-      ` Item: ${order.itemName}\n` +
-      ` Qty: ${order.qty}\n` +
-      ` Total: ₹${order.total}\n` +
-      ` Payment ID: ${paymentId}\n\n` +
-      `Thank you for ordering!`;
-
+    // Send receipt
     await sendWhatsAppMessage({
       messaging_product: "whatsapp",
       to: sendTo,
       type: "text",
-      text: { body: receipt },
+      text: { body: "TEST RECEIPT" },
     });
+    console.log("STEP 5: Receipt sent");
 
-    console.log("Receipt sent to:", sendTo);
-
-    // -------------------------------
-    // 3) CUSTOMER TRACKING LINK
-    // -------------------------------
+    // Create customer tracking token
     const crypto = await import("crypto");
     const customerToken = crypto.randomBytes(32).toString("hex");
 
     order.trackingToken = customerToken;
     order.deliveryStatus = "assigned";
     await order.save();
+    console.log("STEP 6: Customer token saved");
 
     const customerTrackingUrl =
       `${process.env.TRACK_BASE_URL}/track/${order._id}?t=${customerToken}`;
-
-    console.log("Customer tracking URL =", customerTrackingUrl);
+    console.log("STEP 7: Customer tracking URL generated");
 
     await sendWhatsAppMessage({
       messaging_product: "whatsapp",
       to: sendTo,
       type: "text",
-      text: {
-        preview_url: true,
-        body:
-          `🚚 *Order Confirmed!*\nYour live tracking link:\n${customerTrackingUrl}`,
-      },
+      text: { body: "TEST TRACKING LINK" },
     });
+    console.log("STEP 8: Customer tracking sent");
 
-    console.log("Customer tracking link sent");
+    // Driver section debug
+    console.log("STEP 9: Enter driver section");
 
-    // -------------------------------
-    // 4) DRIVER TRACKING LINK
-    // -------------------------------
     const driverId = process.env.DEFAULT_DRIVER_ID!;
     const driverPhone = process.env.DEFAULT_DRIVER_PHONE!;
+    console.log("STEP 10: Driver phone =", driverPhone);
 
     const res = await fetch(`${process.env.TRACK_BASE_URL}/api/driver/send-link`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ orderId: order._id, driverId }),
     });
+    console.log("STEP 11: Fetch returned status", res.status);
 
     const data = await res.json();
-    console.log("Send-link response:", data);
+    console.log("STEP 12: Send-link response:", data);
 
+    // Send driver message
     await sendWhatsAppMessage({
       messaging_product: "whatsapp",
       to: driverPhone,
       type: "text",
-      text: {
-        preview_url: true,
-        body:
-          `🚴 *New Delivery Assigned*\n` +
-          `Order ID: ${order._id}\n\n` +
-          `Start sharing your live location:\n${data.driverTrackingUrl}`,
-      },
+      text: { body: "TEST DRIVER LINK" },
     });
 
-    console.log("Driver link sent to:", driverPhone);
-
+    console.log("STEP 13: Driver message sent!");
+    
   } catch (err) {
-    console.error("FINAL ERROR:", err);
+    console.error("ERROR:", err);
   }
 }
 
