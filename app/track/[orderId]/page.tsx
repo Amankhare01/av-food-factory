@@ -7,7 +7,8 @@ import mapboxgl from "mapbox-gl";
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!;
 
 export default function TrackPage({ params }: any) {
-  const orderId = params.OrderId;
+const orderId = params.orderId;
+
 
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markerRef = useRef<mapboxgl.Marker | null>(null);
