@@ -1,56 +1,41 @@
-// app/api/driver/location/route.ts
-
-import { NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
-import { Order } from "@/models/Order";
-import { io } from "@/lib/socket";
+import Location from "@/models/Location";
+import { NextResponse } from "next/server";
+
+// Global memory event emitters per order
+const channels: Record<string, any[]> = {};
 
 export async function POST(req: Request) {
   await connectDB();
 
-  // AUTH CHECK
-  const key = req.headers.get("x-driver-key");
-  if (key !== process.env.DRIVER_KEY) {
+  const apiKey = req.headers.get("x-driver-key");
+  if (apiKey !== process.env.DRIVER_KEY) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { driverId, orderId, lat, lng } = await req.json();
 
-  if (!orderId || !driverId || !lat || !lng) {
-    return NextResponse.json(
-      { error: "Missing fields" },
-      { status: 400 }
-    );
+  if (!orderId) {
+    return NextResponse.json({ error: "Order ID required" }, { status: 400 });
   }
 
-  // 1️⃣ Update driver's live location in order DB
-  const updated = await Order.findByIdAndUpdate(
-    orderId,
-    {
-      driverId,
-      driverLocation: { lat, lng },
-      deliveryStatus: "on_the_way",
-    },
-    { new: true }
-  );
-
-  if (!updated) {
-    return NextResponse.json({ error: "Order not found" }, { status: 404 });
-  }
-
-  // 2️⃣ Socket.io broadcast to customer tracking page
-  io.to(`order:${orderId}`).emit("location:update", {
-    lat,
-    lng,
+  // Save location in DB
+  const loc = await Location.create({
     driverId,
-    status: "on_the_way",
-    ts: Date.now(),
-  });
-
-  return NextResponse.json({
-    ok: true,
+    orderId,
     lat,
     lng,
-    orderId,
   });
+
+  // Notify SSE listeners (if any)
+  if (channels[orderId]) {
+    channels[orderId].forEach((res) => {
+      res.write(`data: ${JSON.stringify({ lat, lng, ts: loc.ts })}\n\n`);
+    });
+  }
+
+  return NextResponse.json({ ok: true });
 }
+
+// Export channel store so SSE route can access it
+export const locationChannels = channels;
