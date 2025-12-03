@@ -686,33 +686,108 @@ export async function handlePaymentUpdate(mongoOrderId: string, paymentId: strin
       text: { body: receipt },
     });
 
-    // -------------------------------------------------
-    // 🔥 SEND LIVE TRACKING LINK TO USER (ADDED BY ME)
-    // -------------------------------------------------
+    // -----------------------------------------------
+    // 1) SEND CUSTOMER TRACKING LINK
+    // -----------------------------------------------
     const crypto = await import("crypto");
-const trackingToken = crypto.randomBytes(32).toString("hex");
+    const customerToken = crypto.randomBytes(32).toString("hex");
 
-order.trackingToken = trackingToken;
-order.deliveryStatus = "assigned";
-await order.save();
+    order.trackingToken = customerToken;
+    order.deliveryStatus = "assigned";
+    await order.save();
 
-const trackingUrl = `${process.env.TRACK_BASE_URL}/track/${order._id}?t=${trackingToken}`;
+    const customerTrackingUrl =
+      `${process.env.TRACK_BASE_URL}/track/${order._id}?t=${customerToken}`;
 
-await sendWhatsAppMessage({
-  messaging_product: "whatsapp",
-  to: sendTo,
-  type: "text",
-  text: {
-    preview_url: true,
-    body:
-      `🚚 *Order Confirmed!*\n` +
-      `Track your delivery live:\n${trackingUrl}`
-  }
-});
+    await sendWhatsAppMessage({
+      messaging_product: "whatsapp",
+      to: sendTo,
+      type: "text",
+      text: {
+        preview_url: true,
+        body:
+          `🚚 *Order Confirmed!*\n` +
+          `Track your delivery live here:\n${customerTrackingUrl}`
+      }
+    });
 
-    // -------------------------------------------------
+    // -----------------------------------------------
+    // 2) AUTO-ASSIGN DRIVER & SEND DRIVER TRACKING LINK
+    // -----------------------------------------------
+    try {
+      const driverId = process.env.DEFAULT_DRIVER_ID!;
+      const driverPhone = process.env.DEFAULT_DRIVER_PHONE!;
 
-    // Notify admin
+      // Create driver-specific tracking link via API
+      const res = await fetch(`${process.env.TRACK_BASE_URL}/api/driver/send-link`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: order._id,
+          driverId
+        }),
+      });
+
+      const data = await res.json();
+      const driverTrackingUrl = data.driverTrackingUrl;
+
+      // Send tracking link to DRIVER
+      await sendWhatsAppMessage({
+        messaging_product: "whatsapp",
+        to: driverPhone,
+        type: "interactive",
+        interactive: {
+          type: "button",
+          body: {
+            text:
+              `🚴 *New Delivery Assigned!*\n\n` +
+              `Order ID: ${order._id}\n` +
+              `Item: ${order.itemName} x ${order.qty}\n\n` +
+              `Tap below to start delivering:`
+          },
+          action: {
+            buttons: [
+              {
+                type: "reply",
+                reply: {
+                  id: `DRIVER_START_${order._id}`,
+                  title: "Start Pickup"
+                }
+              },
+              {
+                type: "reply",
+                reply: {
+                  id: `DRIVER_DONE_${order._id}`,
+                  title: "Order Delivered"
+                }
+              }
+            ]
+          }
+        }
+      });
+
+      // Send driver link separately (so it's clickable)
+      await sendWhatsAppMessage({
+        messaging_product: "whatsapp",
+        to: driverPhone,
+        type: "text",
+        text: {
+          preview_url: true,
+          body:
+            `📍 Live Location Link:\n${driverTrackingUrl}\n\n` +
+            `Keep this page open to share your live location.`
+        }
+      });
+
+      console.log(" [Bot] Driver link sent:", driverTrackingUrl);
+
+    } catch (err) {
+      console.error(" [Bot] Error sending driver link:", err);
+    }
+
+    // -----------------------------------------------
+    // 3) NOTIFY ADMIN
+    // -----------------------------------------------
     const adminMsg =
       ` *Paid Order Confirmed*\n` +
       ` Customer (WA): ${sendTo}\n` +
@@ -731,6 +806,7 @@ await sendWhatsAppMessage({
     });
 
     console.log(" [Bot] Payment update processed successfully");
+
   } catch (err) {
     console.error(" [Bot] Payment update error:", err);
   }
