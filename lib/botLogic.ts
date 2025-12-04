@@ -30,6 +30,10 @@ type OrderDraft = {
   delivery?: "pickup" | "delivery";
   phone?: string;   // delivery phone (not WA sender)
   address?: string;
+  dropoff?: {
+    lat: number;
+    lng: number;
+  };
 };
 
 const userStates = new Map<string, { step: Step; order: OrderDraft }>();
@@ -462,16 +466,50 @@ if (postback === "ACTION_PLAN_MEAL") {
   }
 
   // 7) ADDRESS
-  if (state.step === "AWAITING_ADDRESS") {
-    if (!validAddress(userMsg)) {
-      await sendWhatsAppMessage(buildText(to, "Address seems short. Try again."));
-      return;
-    }
-    state.order.address = userMsg.trim();
-    state.step = "AWAITING_CONFIRM";
-    await sendWhatsAppMessage(buildConfirmButtons(to, summarize(state.order)));
+ // 7) ADDRESS
+if (state.step === "AWAITING_ADDRESS") {
+  const address = userMsg.trim();
+
+  if (!validAddress(address)) {
+    await sendWhatsAppMessage(buildText(to, "Address seems short. Try again."));
     return;
   }
+
+  // 1) Geocode address using Mapbox
+  try {
+    const geoRes = await fetch(`${process.env.TRACK_BASE_URL}/api/geocode`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ address }),
+    });
+
+    const geo = await geoRes.json();
+
+    if (geo.error || !geo.lat || !geo.lng) {
+      await sendWhatsAppMessage(buildText(to, "Unable to detect your location. Please send a complete address."));
+      return;
+    }
+
+    // 2) Save into draft state
+    state.order.address = address;
+    (state.order as any).dropoff = { lat: geo.lat, lng: geo.lng };
+
+    state.step = "AWAITING_CONFIRM";
+
+    await sendWhatsAppMessage(
+      buildConfirmButtons(to, summarize(state.order))
+    );
+
+  } catch (err) {
+    console.error("GEOCODING ERROR:", err);
+    await sendWhatsAppMessage(
+      buildText(to, "Location error. Please send address again.")
+    );
+  }
+
+  return;
+}
+
 
   // 8) CONFIRM
   if (state.step === "AWAITING_CONFIRM") {
@@ -496,18 +534,19 @@ if (postback === "ACTION_PLAN_MEAL") {
         await connectDB();
 
         // Save order in DB — include `from` for receipt later
-        const saved = await Order.create({
-          from: to,
-          categoryName: state.order.categoryName,
-          itemName: state.order.itemName,
-          qty: state.order.qty,
-          delivery: state.order.delivery,
-          phone: state.order.phone,     // delivery contact
-          address: state.order.address,
-          total,
-          paid: false,
-          status: "created",
-        });
+      const saved = await Order.create({
+  from: to,
+  categoryName: state.order.categoryName,
+  itemName: state.order.itemName,
+  qty: state.order.qty,
+  delivery: state.order.delivery,
+  phone: state.order.phone,
+  address: state.order.address,
+  dropoff: state.order.dropoff,   // <-- IMPORTANT
+  total,
+  paid: false,
+  status: "created",
+});
 
         state.order.mongoId = String(saved._id);
 
@@ -591,60 +630,6 @@ if (postback === "ACTION_PLAN_MEAL") {
   // 9) Fallback
   await sendWhatsAppMessage(buildText(to, "Type *hi* to start again."));
 }
-
-// ---- Payment confirmation handler (called by your Razorpay webhook route) ----
-// export async function handlePaymentUpdate(mongoOrderId: string, paymentId: string) {
-//   try {
-//     console.log(" [Bot] Payment update received for order:", mongoOrderId);
-
-//     await connectDB();
-//     const order = await Order.findByIdAndUpdate(
-//       mongoOrderId,
-//       { paid: true, status: "paid", paymentId },
-//       { new: true }
-//     );
-
-//     if (!order) {
-//       console.error(" [Bot] Order not found:", mongoOrderId);
-//       return;
-//     }
-
-//     //  Send receipt to WhatsApp sender (order.from), not delivery phone
-//     const sendTo = (order.from || "").replace("+", "");
-//     if (!sendTo) {
-//       console.error(" [Bot] Missing `from` (WhatsApp number) on order:", mongoOrderId);
-//       return;
-//     }
-
-//     const receipt =
-//       ` *AV Food Factory Receipt*\n\n` +
-//       ` Item: ${order.itemName}\n` +
-//       ` Qty: ${order.qty}\n` +
-//       ` Total: ₹${order.total}\n` +
-//       ` Payment ID: ${order.paymentId}\n` +
-//       ` Status: Confirmed\n` +
-//       ` ${new Date().toLocaleString("en-IN")}\n\n` +
-//       `Thank you for ordering!`;
-
-//     await sendWhatsAppMessage({ messaging_product: "whatsapp", to: sendTo, type: "text", text: { body: receipt } });
-
-//     const adminMsg =
-//       ` *Paid Order Confirmed*\n` +
-//       ` Customer (WA): ${sendTo}\n` +
-//       ` Delivery Phone: ${order.phone || "—"}\n` +
-//       ` Item: ${order.itemName}\n` +
-//       ` Qty: ${order.qty}\n` +
-//       ` Total: ₹${order.total}\n` +
-//       ` Payment ID: ${order.paymentId}\n` +
-//       ` ${new Date().toLocaleString("en-IN")}`;
-
-//     await sendWhatsAppMessage({ messaging_product: "whatsapp", to: ADMIN_PHONE, type: "text", text: { body: adminMsg } });
-
-//     console.log(" [Bot] Payment update processed successfully");
-//   } catch (err) {
-//     console.error(" [Bot] Payment update error:", err);
-//   }
-// }
 
 export async function handlePaymentUpdate(mongoOrderId: string, paymentId: string) {
   try {
@@ -751,87 +736,4 @@ export async function handlePaymentUpdate(mongoOrderId: string, paymentId: strin
   }
 }
 
-// export async function handlePaymentUpdate(mongoOrderId: string, paymentId: string) {
-//   try {
-//     console.log("STEP 1: Function started");
-    
-//     await connectDB();
-//     console.log("STEP 2: Connected to DB");
-
-//     const order = await Order.findByIdAndUpdate(
-//       mongoOrderId,
-//       { paid: true, status: "paid", paymentId },
-//       { new: true }
-//     );
-//     console.log("STEP 3: Order fetched");
-
-//     if (!order) {
-//       console.log("STOP: Order not found");
-//       return;
-//     }
-
-//     const sendTo = (order.from || "").replace("+", "");
-//     console.log("STEP 4: Customer number =", sendTo);
-
-//     // Send receipt
-//     await sendWhatsAppMessage({
-//       messaging_product: "whatsapp",
-//       to: sendTo,
-//       type: "text",
-//       text: { body: "TEST RECEIPT" },
-//     });
-//     console.log("STEP 5: Receipt sent");
-
-//     // Create customer tracking token
-//     const crypto = await import("crypto");
-//     const customerToken = crypto.randomBytes(32).toString("hex");
-
-//     order.trackingToken = customerToken;
-//     order.deliveryStatus = "assigned";
-//     await order.save();
-//     console.log("STEP 6: Customer token saved");
-
-//     const customerTrackingUrl =
-//       `${process.env.TRACK_BASE_URL}/track/${order._id}?t=${customerToken}`;
-//     console.log("STEP 7: Customer tracking URL generated");
-
-//     await sendWhatsAppMessage({
-//       messaging_product: "whatsapp",
-//       to: sendTo,
-//       type: "text",
-//       text: { body: "TEST TRACKING LINK" },
-//     });
-//     console.log("STEP 8: Customer tracking sent");
-
-//     // Driver section debug
-//     console.log("STEP 9: Enter driver section");
-
-//     const driverId = process.env.DEFAULT_DRIVER_ID!;
-//     const driverPhone = process.env.DEFAULT_DRIVER_PHONE!;
-//     console.log("STEP 10: Driver phone =", driverPhone);
-
-//     const res = await fetch(`${process.env.TRACK_BASE_URL}/api/driver/send-link`, {
-//       method: "POST",
-//       headers: { "Content-Type": "application/json" },
-//       body: JSON.stringify({ orderId: order._id, driverId }),
-//     });
-//     console.log("STEP 11: Fetch returned status", res.status);
-
-//     const data = await res.json();
-//     console.log("STEP 12: Send-link response:", data);
-
-//     // Send driver message
-//     await sendWhatsAppMessage({
-//       messaging_product: "whatsapp",
-//       to: driverPhone,
-//       type: "text",
-//       text: { body: "TEST DRIVER LINK" },
-//     });
-
-//     console.log("STEP 13: Driver message sent!");
-    
-//   } catch (err) {
-//     console.error("ERROR:", err);
-//   }
-// }
 
