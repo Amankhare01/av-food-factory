@@ -463,40 +463,39 @@ if (postback === "ACTION_PLAN_MEAL") {
   }
 
   // 7) ADDRESS
-
+// STEP 7: ADDRESS
 if (state.step === "AWAITING_ADDRESS") {
-  if (!validAddress(userMsg)) {
+  const addr = userMsg.trim();
+
+  if (!validAddress(addr)) {
     await sendWhatsAppMessage(buildText(to, "Address seems short. Try again."));
     return;
   }
 
-  const address = userMsg.trim();
-  state.order.address = address;
+  state.order.address = addr;
 
-  // -----------------------------------------------------
-  // AUTO-GEOCODE ADDRESS → lat/lng USING MAPBOX SECRET KEY
-  // -----------------------------------------------------
+  // ───────────────────────────────────────────────
+  // GEOCODE CUSTOMER ADDRESS → GET LAT/LNG
+  // ───────────────────────────────────────────────
   try {
-    const mapboxSecret = process.env.MAPBOX_SECRET_TOKEN;
-
     const geoRes = await fetch(
-      `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
-        address
-      )}.json?access_token=${mapboxSecret}`
+      `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(addr)}.json?access_token=${process.env.MAPBOX_SECRET_TOKEN}`
     );
+    const geo = await geoRes.json();
 
-    const geoData = await geoRes.json();
-
-    if (geoData?.features?.length > 0) {
-      const [lng, lat] = geoData.features[0].center;
-      state.order.dropoff = { lat, lng };
+    if (geo?.features?.length > 0) {
+      const [lng, lat] = geo.features[0].center;
+      state.order.dropoff = { lat, lng };      // ★ SET HERE
+      console.log("Dropoff saved:", state.order.dropoff);
     } else {
-      state.order.dropoff = null; // fallback
+      console.log("No geocode result, using null");
+      state.order.dropoff = null;
     }
   } catch (err) {
-    console.error("Mapbox geocode error:", err);
+    console.error("Geocoding failed:", err);
     state.order.dropoff = null;
   }
+  // ───────────────────────────────────────────────
 
   state.step = "AWAITING_CONFIRM";
   await sendWhatsAppMessage(buildConfirmButtons(to, summarize(state.order)));
