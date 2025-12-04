@@ -2,14 +2,14 @@ import { NextResponse } from "next/server";
 import crypto from "crypto";
 import connectDB from "@/lib/mongodb";
 import { Order } from "@/models/Order";
-import { handlePaymentUpdate } from "@/lib/botLogic";  // IMPORTANT FIX
+import { handlePaymentUpdate } from "@/lib/botLogic";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const preferredRegion = "iad1";
 
 export async function POST(req: Request) {
-  console.log("🚀 Razorpay Webhook Triggered");
+  console.log("Razorpay Webhook Triggered");
 
   try {
     const secret = process.env.RAZORPAY_WEBHOOK_SECRET!;
@@ -23,54 +23,67 @@ export async function POST(req: Request) {
       .digest("hex");
 
     if (expectedSignature !== signature) {
-      console.error("⛔ Invalid Razorpay signature");
+      console.error("Signature mismatch");
       return NextResponse.json({ success: false }, { status: 400 });
     }
 
     const body = JSON.parse(rawBody);
-    console.log("✔ Verified Razorpay Event:", body.event);
+    console.log(" Verified Event:", body.event);
 
-    // 2) Get payment entity
+    // 2) Extract payment entity
     const entity =
       body.payload?.payment?.entity ||
       body.payload?.payment_link?.entity ||
       body.payload?.order?.entity;
 
     if (!entity) {
-      console.error("⛔ Missing entity in webhook payload");
+      console.error(" Missing entity in webhook");
       return NextResponse.json({ success: false }, { status: 400 });
     }
 
-    // 3) Extract mongoOrderId
+    console.log(" Razorpay Entity:", entity);
+
+    // 3) Extract orderId
     const mongoOrderId = entity.notes?.mongoOrderId || entity.reference_id;
-    console.log("🟦 mongoOrderId:", mongoOrderId);
+
+    console.log(" mongoOrderId received:", mongoOrderId);
 
     if (!mongoOrderId) {
-      console.error("⛔ mongoOrderId missing from Razorpay");
+      console.error(" mongoOrderId missing");
       return NextResponse.json({ success: false }, { status: 400 });
     }
 
-    // 4) DB connect
+    // 4) Connect DB
     await connectDB();
+    console.log(" DB Connected");
 
-    // (Optional) Small update
-    await Order.findByIdAndUpdate(mongoOrderId, {
-      paid: true,
-      status: "paid",
-      paymentId: entity.id,
-      razorpayOrderId: entity.order_id,
-    });
+    // 5) Update Mongo Order
+    const updatedOrder = await Order.findByIdAndUpdate(
+      mongoOrderId,
+      {
+        paid: true,
+        status: "paid",
+        paymentId: entity.id,
+        razorpayOrderId: entity.order_id,
+      },
+      { new: true }
+    );
 
-    console.log("✔ Order updated in DB");
+    if (!updatedOrder) {
+      console.error("❌ No order found:", mongoOrderId);
+      return NextResponse.json({ success: false }, { status: 404 });
+    }
 
-    // 5) CALL handlePaymentUpdate() — FULL FLOW (driver + tracking + receipt)
-    console.log("🚀 Calling handlePaymentUpdate...");
+    console.log(" Order Updated:", updatedOrder._id);
+
+    // 6) Full bot workflow (receipt + customer tracking + driver link)
     await handlePaymentUpdate(mongoOrderId, entity.id);
-    console.log("✔ handlePaymentUpdate Completed");
+
+    console.log(" handlePaymentUpdate DONE");
 
     return NextResponse.json({ success: true });
   } catch (err: any) {
-    console.error("❌ WEBHOOK ERROR:", err);
+    console.error(" WEBHOOK ERROR:", err);
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
 }

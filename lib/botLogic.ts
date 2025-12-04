@@ -688,9 +688,9 @@ export async function handlePaymentUpdate(mongoOrderId: string, paymentId: strin
 
     console.log("Receipt sent to:", sendTo);
 
-    // -------------------------------
+
     // 3) CUSTOMER TRACKING LINK
-    // -------------------------------
+
     const crypto = await import("crypto");
     const customerToken = crypto.randomBytes(32).toString("hex");
 
@@ -710,15 +710,15 @@ export async function handlePaymentUpdate(mongoOrderId: string, paymentId: strin
       text: {
         preview_url: true,
         body:
-          `🚚 *Order Confirmed!*\nYour live tracking link:\n${customerTrackingUrl}`,
+          ` *Order Confirmed!*\nYour live tracking link:\n${customerTrackingUrl}`,
       },
     });
 
     console.log("Customer tracking link sent");
 
-    // -------------------------------
-    // 4) DRIVER TRACKING LINK
-    // -------------------------------
+
+    //  DRIVER TRACKING LINK
+
     const driverId = process.env.DEFAULT_DRIVER_ID!;
     const driverPhone = process.env.DEFAULT_DRIVER_PHONE!;
 

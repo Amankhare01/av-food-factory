@@ -33,7 +33,7 @@ export async function GET(req: Request) {
       if (!locationChannels[orderId]) {
         locationChannels[orderId] = [];
       }
-
+   
       // Assign client writer
       client = {
         write: (msg: string) => {
