@@ -16,10 +16,9 @@ export async function GET(req: Request) {
     );
   }
 
-  // Customer token must match trackingToken
   const order = await Order.findOne({
     _id: orderId,
-    trackingToken: token,     // FIXED HERE
+    trackingToken: token,
   });
 
   if (!order) {

@@ -30,10 +30,7 @@ type OrderDraft = {
   delivery?: "pickup" | "delivery";
   phone?: string;   // delivery phone (not WA sender)
   address?: string;
-  dropoff?: {
-    lat: number;
-    lng: number;
-  };
+ dropoff?: { lat: number; lng: number } | null;
 };
 
 const userStates = new Map<string, { step: Step; order: OrderDraft }>();
@@ -466,49 +463,46 @@ if (postback === "ACTION_PLAN_MEAL") {
   }
 
   // 7) ADDRESS
- // 7) ADDRESS
-if (state.step === "AWAITING_ADDRESS") {
-  const address = userMsg.trim();
 
-  if (!validAddress(address)) {
+if (state.step === "AWAITING_ADDRESS") {
+  if (!validAddress(userMsg)) {
     await sendWhatsAppMessage(buildText(to, "Address seems short. Try again."));
     return;
   }
 
-  // 1) Geocode address using Mapbox
+  const address = userMsg.trim();
+  state.order.address = address;
+
+  // -----------------------------------------------------
+  // AUTO-GEOCODE ADDRESS → lat/lng USING MAPBOX SECRET KEY
+  // -----------------------------------------------------
   try {
-    const geoRes = await fetch(`${process.env.TRACK_BASE_URL}/api/geocode`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ address }),
-    });
+    const mapboxSecret = process.env.MAPBOX_SECRET_TOKEN;
 
-    const geo = await geoRes.json();
+    const geoRes = await fetch(
+      `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
+        address
+      )}.json?access_token=${mapboxSecret}`
+    );
 
-    if (geo.error || !geo.lat || !geo.lng) {
-      await sendWhatsAppMessage(buildText(to, "Unable to detect your location. Please send a complete address."));
-      return;
+    const geoData = await geoRes.json();
+
+    if (geoData?.features?.length > 0) {
+      const [lng, lat] = geoData.features[0].center;
+      state.order.dropoff = { lat, lng };
+    } else {
+      state.order.dropoff = null; // fallback
     }
-
-    // 2) Save into draft state
-    state.order.address = address;
-    (state.order as any).dropoff = { lat: geo.lat, lng: geo.lng };
-
-    state.step = "AWAITING_CONFIRM";
-
-    await sendWhatsAppMessage(
-      buildConfirmButtons(to, summarize(state.order))
-    );
-
   } catch (err) {
-    console.error("GEOCODING ERROR:", err);
-    await sendWhatsAppMessage(
-      buildText(to, "Location error. Please send address again.")
-    );
+    console.error("Mapbox geocode error:", err);
+    state.order.dropoff = null;
   }
 
+  state.step = "AWAITING_CONFIRM";
+  await sendWhatsAppMessage(buildConfirmButtons(to, summarize(state.order)));
   return;
 }
+
 
 
   // 8) CONFIRM
@@ -534,7 +528,8 @@ if (state.step === "AWAITING_ADDRESS") {
         await connectDB();
 
         // Save order in DB — include `from` for receipt later
-      const saved = await Order.create({
+// Save order in DB — include dropoff coords
+const saved = await Order.create({
   from: to,
   categoryName: state.order.categoryName,
   itemName: state.order.itemName,
@@ -542,11 +537,14 @@ if (state.step === "AWAITING_ADDRESS") {
   delivery: state.order.delivery,
   phone: state.order.phone,
   address: state.order.address,
-  dropoff: state.order.dropoff,   // <-- IMPORTANT
   total,
   paid: false,
   status: "created",
+
+  // NEW: save dropoff lat/lng if available
+  dropoff: state.order.dropoff || null,
 });
+
 
         state.order.mongoId = String(saved._id);
 
