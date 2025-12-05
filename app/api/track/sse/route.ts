@@ -2,7 +2,6 @@ import connectDB from "@/lib/mongodb";
 import { Order } from "@/models/Order";
 import { locationChannels } from "@/lib/locationChannels";
 
-
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -22,42 +21,40 @@ export async function GET(req: Request) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  // FIX: define client here so both start() and cancel() can access it
   let client: any = null;
 
   const stream = new ReadableStream({
     start(controller) {
       const encoder = new TextEncoder();
 
-      // Create channel if not exists
+      // Create channel if missing
       if (!locationChannels[orderId]) {
-        locationChannels[orderId] = [];
+        locationChannels[orderId] = new Set();
       }
-   
-      // Assign client writer
+
+      // Define SSE client object
       client = {
-        write: (msg: string) => {
-          controller.enqueue(encoder.encode(msg));
-        },
+        write: (msg: string) => controller.enqueue(encoder.encode(msg)),
       };
 
-      // Add client to channel list
-      locationChannels[orderId].push(client);
+      // Add client to channel
+      locationChannels[orderId].add(client);
 
-      // Notify browser that SSE is ready
+      // Tell browser SSE is ready
       controller.enqueue(
-        encoder.encode(
-          `data: ${JSON.stringify({ ready: true })}\n\n`
-        )
+        encoder.encode(`data: ${JSON.stringify({ ready: true })}\n\n`)
       );
     },
 
     cancel() {
-      // Remove client when browser closes connection
+      // Remove client on disconnect
       if (locationChannels[orderId]) {
-        locationChannels[orderId] = locationChannels[orderId].filter(
-          (c: any) => c !== client
-        );
+        locationChannels[orderId].delete(client);
+
+        // If empty, cleanup channel
+        if (locationChannels[orderId].size === 0) {
+          delete locationChannels[orderId];
+        }
       }
     },
   });
