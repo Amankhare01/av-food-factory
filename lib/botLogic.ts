@@ -462,44 +462,23 @@ if (postback === "ACTION_PLAN_MEAL") {
   }
 
 
-// STEP 7: ADDRESS
-if (state.step === "AWAITING_ADDRESS") {
-  const addr = userMsg.trim();
+//  STEP 7: ADDRESS — updated: save typed address, no geocoding
+  if (state.step === "AWAITING_ADDRESS") {
+    const addr = userMsg.trim();
 
-  if (!validAddress(addr)) {
-    await sendWhatsAppMessage(buildText(to, "Address seems short. Try again."));
+    if (!validAddress(addr)) {
+      await sendWhatsAppMessage(buildText(to, "Address seems short. Try again."));
+      return;
+    }
+
+    // Save the typed address; do NOT attempt geocoding here.
+    state.order.address = addr;
+    state.order.dropoff = null; // intentionally not using geocode
+
+    state.step = "AWAITING_CONFIRM";
+    await sendWhatsAppMessage(buildConfirmButtons(to, summarize(state.order)));
     return;
   }
-
-  state.order.address = addr;
-
-  // NEW — USE INTERNAL GEOCODE API (100% reliable)
-  try {
-    const geoRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/geocode`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ address: addr }),
-    });
-
-    const geo = await geoRes.json();
-
-    if (geo?.lat && geo?.lng) {
-      state.order.dropoff = { lat: geo.lat, lng: geo.lng };
-      console.log("Dropoff saved:", state.order.dropoff);
-    } else {
-      console.log("Geocode API returned no coords, using null");
-      state.order.dropoff = null;
-    }
-  } catch (err) {
-    console.error("Geocoding API failed:", err);
-    state.order.dropoff = null;
-  }
-
-  state.step = "AWAITING_CONFIRM";
-  await sendWhatsAppMessage(buildConfirmButtons(to, summarize(state.order)));
-  return;
-}
-
 
 
 

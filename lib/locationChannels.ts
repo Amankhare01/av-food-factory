@@ -1,1 +1,2 @@
-export const locationChannels: Record<string, any[]> = {};
+
+export const locationChannels: Record<string, Set<any>> = {};

@@ -2,73 +2,64 @@
 
 import { useEffect, useRef } from "react";
 import mapboxgl from "mapbox-gl";
+import { IOrder } from "@/models/Order";
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!;
 
 export default function TrackPage({ params }: any) {
+  const orderId = params.orderId;
 
-  const orderId = params.orderId;  
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markerRef = useRef<mapboxgl.Marker | null>(null);
 
   useEffect(() => {
     const token = new URLSearchParams(window.location.search).get("t");
-
-    console.log("orderId =", orderId, "token =", token);
-
-    if (!orderId || !token) {
-      console.error("Missing orderId or token");
-      return;
-    }
+    if (!orderId || !token) return;
 
     fetch(`/api/track/verify?orderId=${orderId}&t=${token}`)
       .then((res) => res.json())
       .then((d) => {
+        if (!d.ok) return;
 
-        if (!d.ok) {
-          console.error("Verify failed", d);
-          return;
-        }
-
-        const { lat, lng } = d.order.dropoff;
-
-        // Create MAP
+        // Initialize map empty
         mapRef.current = new mapboxgl.Map({
           container: "map",
           style: "mapbox://styles/mapbox/streets-v11",
-          center: [lng, lat],
-          zoom: 14,
+          center: [0, 0],
+          zoom: 2,
         });
 
-        // Create MARKER
-        markerRef.current = new mapboxgl.Marker({ color: "red" })
-          .setLngLat([lng, lat])
-          .addTo(mapRef.current);
+        markerRef.current = null;
 
-        // SSE connection
-        const evtSrc = new EventSource(
-          `/api/track/sse?orderId=${orderId}&t=${token}`
-        );
+        // SSE
+        const evtSrc = new EventSource(`/api/track/sse?orderId=${orderId}&t=${token}`);
 
         evtSrc.onmessage = (e) => {
           const data = JSON.parse(e.data);
-          console.log("SSE update:", data);
 
           if (!data.lat || !data.lng) return;
 
-          markerRef.current?.setLngLat([data.lng, data.lat]);
-          mapRef.current?.easeTo({
-            center: [data.lng, data.lat],
-            duration: 500,
-          });
+          // First update → create marker
+          if (!markerRef.current) {
+            markerRef.current = new mapboxgl.Marker({ color: "blue" })
+              .setLngLat([data.lng, data.lat])
+              .addTo(mapRef.current!);
+
+            mapRef.current?.setCenter([data.lng, data.lat]);
+            mapRef.current?.setZoom(15);
+          } else {
+            markerRef.current?.setLngLat([data.lng, data.lat]);
+
+            if (!mapRef.current) return;
+
+            mapRef.current.easeTo({
+              center: [data.lng, data.lat],
+              duration: 500,
+            });
+          }
         };
 
-        evtSrc.onerror = (e) => {
-          console.error("SSE error:", e);
-        };
-      })
-      .catch((err) => {
-        console.error("TRACK INIT ERROR:", err);
+        evtSrc.onerror = (err) => console.error("SSE error:", err);
       });
   }, [orderId]);
 
