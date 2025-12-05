@@ -3,7 +3,7 @@ import { userMealStates, handleMealPlanIncoming } from "./mealPlanBot";
 import connectDB from "./mongodb";
 import { Order } from "@/models/Order";
 
-// ---- ENV ----
+
 const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID!;
 const ACCESS_TOKEN = process.env.META_ACCESS_TOKEN!;
 const ADMIN_PHONE = (process.env.ADMIN_WHATSAPP_NUMBER || "916306512288").replace("+", "");
@@ -35,7 +35,7 @@ type OrderDraft = {
 
 const userStates = new Map<string, { step: Step; order: OrderDraft }>();
 
-// ---- Menu Collections ----
+
 const CATEGORIES = [
   { id: "breakfast", name: "Breakfast" },
   { id: "snacks", name: "Snacks" },
@@ -46,7 +46,6 @@ const CATEGORIES = [
   { id: "combos", name: "Combos" },
 ] as const;
 
-// ---- Items per Category ----
 const MENU: Record<string, { id: string; name: string; price: number }[]> = {
   breakfast: [
     { id: "paratha_combo", name: "Paratha Combo", price: 120 },
@@ -99,7 +98,7 @@ const MENU: Record<string, { id: string; name: string; price: number }[]> = {
   ],
 };
 
-// ---- WhatsApp sender ----
+
 export async function sendWhatsAppMessage(msg: any) {
   try {
     const res = await fetch(`https://graph.facebook.com/v22.0/${PHONE_NUMBER_ID}/messages`, {
@@ -462,7 +461,7 @@ if (postback === "ACTION_PLAN_MEAL") {
     return;
   }
 
-  // 7) ADDRESS
+
 // STEP 7: ADDRESS
 if (state.step === "AWAITING_ADDRESS") {
   const addr = userMsg.trim();
@@ -474,33 +473,33 @@ if (state.step === "AWAITING_ADDRESS") {
 
   state.order.address = addr;
 
-  // ───────────────────────────────────────────────
-  // GEOCODE CUSTOMER ADDRESS → GET LAT/LNG
-  // ───────────────────────────────────────────────
+  // NEW — USE INTERNAL GEOCODE API (100% reliable)
   try {
-    const geoRes = await fetch(
-      `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(addr)}.json?access_token=${process.env.MAPBOX_SECRET_TOKEN}`
-    );
+    const geoRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/geocode`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ address: addr }),
+    });
+
     const geo = await geoRes.json();
 
-    if (geo?.features?.length > 0) {
-      const [lng, lat] = geo.features[0].center;
-      state.order.dropoff = { lat, lng };      // ★ SET HERE
+    if (geo?.lat && geo?.lng) {
+      state.order.dropoff = { lat: geo.lat, lng: geo.lng };
       console.log("Dropoff saved:", state.order.dropoff);
     } else {
-      console.log("No geocode result, using null");
+      console.log("Geocode API returned no coords, using null");
       state.order.dropoff = null;
     }
   } catch (err) {
-    console.error("Geocoding failed:", err);
+    console.error("Geocoding API failed:", err);
     state.order.dropoff = null;
   }
-  // ───────────────────────────────────────────────
 
   state.step = "AWAITING_CONFIRM";
   await sendWhatsAppMessage(buildConfirmButtons(to, summarize(state.order)));
   return;
 }
+
 
 
 
