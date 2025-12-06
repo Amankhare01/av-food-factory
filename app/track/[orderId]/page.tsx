@@ -2,7 +2,6 @@
 
 import { useEffect, useRef } from "react";
 import mapboxgl from "mapbox-gl";
-import { IOrder } from "@/models/Order";
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!;
 
@@ -21,7 +20,6 @@ export default function TrackPage({ params }: any) {
       .then((d) => {
         if (!d.ok) return;
 
-        // Initialize map empty
         mapRef.current = new mapboxgl.Map({
           container: "map",
           style: "mapbox://styles/mapbox/streets-v11",
@@ -31,15 +29,16 @@ export default function TrackPage({ params }: any) {
 
         markerRef.current = null;
 
-        // SSE
+        // SSE LISTENER
         const evtSrc = new EventSource(`/api/track/sse?orderId=${orderId}&t=${token}`);
 
         evtSrc.onmessage = (e) => {
           const data = JSON.parse(e.data);
 
-          if (!data.lat || !data.lng) return;
+       
+          if (data.lat == null || data.lng == null) return;
 
-          // First update → create marker
+        
           if (!markerRef.current) {
             markerRef.current = new mapboxgl.Marker({ color: "blue" })
               .setLngLat([data.lng, data.lat])
@@ -50,9 +49,7 @@ export default function TrackPage({ params }: any) {
           } else {
             markerRef.current?.setLngLat([data.lng, data.lat]);
 
-            if (!mapRef.current) return;
-
-            mapRef.current.easeTo({
+            mapRef.current?.easeTo({
               center: [data.lng, data.lat],
               duration: 500,
             });
