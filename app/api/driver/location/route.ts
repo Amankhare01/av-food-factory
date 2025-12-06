@@ -1,5 +1,6 @@
 import connectDB from "@/lib/mongodb";
 import Location from "@/models/Location";
+import { Order } from "@/models/Order";
 import { NextResponse } from "next/server";
 import { locationChannels } from "@/lib/locationChannels";
 
@@ -17,17 +18,27 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Order ID required" }, { status: 400 });
   }
 
+  const id = String(orderId); 
+
   const loc = await Location.create({
     driverId,
-    orderId,
+    orderId: id,
     lat,
     lng,
   });
 
-  // Notify any SSE listeners
-  if (locationChannels[orderId]) {
-    locationChannels[orderId].forEach((client) => {
-      client.write(`data: ${JSON.stringify({ lat, lng, ts: loc.ts })}\n\n`);
+
+  await Order.findByIdAndUpdate(id, {
+    driverLocation: { lat, lng },
+    deliveryStatus: "on_the_way",
+  });
+
+  
+  if (locationChannels[id]) {
+    locationChannels[id].forEach((client) => {
+      client.write(
+        `data: ${JSON.stringify({ lat, lng, ts: loc.ts })}\n\n`
+      );
     });
   }
 
