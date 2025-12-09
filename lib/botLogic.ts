@@ -617,8 +617,10 @@ export async function handlePaymentUpdate(mongoOrderId: string, paymentId: strin
     console.log("Connected to DB");
 
     // 1) Update order paid
-    const order = await Order.findById(
-      mongoOrderId
+    const order = await Order.findByIdAndUpdate(
+      mongoOrderId,
+      { paid: true, status: "paid", paymentId },
+      { new: true }
     );
 
     if (!order) {
@@ -629,22 +631,22 @@ export async function handlePaymentUpdate(mongoOrderId: string, paymentId: strin
     const sendTo = (order.from || "").replace("+", "");
 
     // 2) SEND RECEIPT
-    // const receipt =
-    //   ` *AV Food Factory Receipt*\n\n` +
-    //   ` Item: ${order.itemName}\n` +
-    //   ` Qty: ${order.qty}\n` +
-    //   ` Total: ₹${order.total}\n` +
-    //   ` Payment ID: ${paymentId}\n\n` +
-    //   `Thank you for ordering!`;
+    const receipt =
+      ` *AV Food Factory Receipt*\n\n` +
+      ` Item: ${order.itemName}\n` +
+      ` Qty: ${order.qty}\n` +
+      ` Total: ₹${order.total}\n` +
+      ` Payment ID: ${paymentId}\n\n` +
+      `Thank you for ordering!`;
 
-    // await sendWhatsAppMessage({
-    //   messaging_product: "whatsapp",
-    //   to: sendTo,
-    //   type: "text",
-    //   text: { body: receipt },
-    // });
+    await sendWhatsAppMessage({
+      messaging_product: "whatsapp",
+      to: sendTo,
+      type: "text",
+      text: { body: receipt },
+    });
 
-    // console.log("Receipt sent to:", sendTo);
+    console.log("Receipt sent to:", sendTo);
 
 
     // 3) CUSTOMER TRACKING LINK
@@ -708,6 +710,5 @@ export async function handlePaymentUpdate(mongoOrderId: string, paymentId: strin
     console.error("FINAL ERROR:", err);
   }
 }
-
 
 
