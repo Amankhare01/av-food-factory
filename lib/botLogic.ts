@@ -618,7 +618,7 @@ export async function handlePaymentUpdate(mongoOrderId: string, paymentId: strin
 
     // 1) Update order paid
     const order = await Order.findByIdAndUpdate(
-      mongoOrderId,
+     { _id: mongoOrderId, paid: false }, 
       { paid: true, status: "paid", paymentId },
       { new: true }
     );
