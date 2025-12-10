@@ -9,12 +9,14 @@ export async function GET(req: Request) {
   await connectDB();
 
   const url = new URL(req.url);
-  const orderId = url.searchParams.get("orderId");
+  const rawOrderId = url.searchParams.get("orderId");
   const token = url.searchParams.get("t");
 
-  if (!orderId || !token) {
+  if (!rawOrderId || !token) {
     return new Response("Missing params", { status: 400 });
   }
+
+  const orderId = String(rawOrderId).trim(); // ⭐ fix
 
   const order = await Order.findOne({ _id: orderId, trackingToken: token });
   if (!order) {
@@ -27,31 +29,26 @@ export async function GET(req: Request) {
     start(controller) {
       const encoder = new TextEncoder();
 
-      // Create channel if missing
       if (!locationChannels[orderId]) {
         locationChannels[orderId] = new Set();
       }
 
-      // Define SSE client object
       client = {
         write: (msg: string) => controller.enqueue(encoder.encode(msg)),
       };
 
-      // Add client to channel
       locationChannels[orderId].add(client);
 
-      // Tell browser SSE is ready
+      // Ready signal
       controller.enqueue(
         encoder.encode(`data: ${JSON.stringify({ ready: true })}\n\n`)
       );
     },
 
     cancel() {
-      // Remove client on disconnect
       if (locationChannels[orderId]) {
         locationChannels[orderId].delete(client);
 
-        // If empty, cleanup channel
         if (locationChannels[orderId].size === 0) {
           delete locationChannels[orderId];
         }

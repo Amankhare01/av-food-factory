@@ -18,7 +18,7 @@ export async function POST(req: Request) {
   // 1. Generate a secure random token
   const token = crypto.randomBytes(32).toString("hex");
 
-  // 2. Save token + driverId to DB
+  // 2. Save token + driverId to DB            
   await Order.findByIdAndUpdate(orderId, {
     driverId,
     driverTrackingToken: token,

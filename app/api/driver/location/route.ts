@@ -1,12 +1,7 @@
-import connectDB from "@/lib/mongodb";
-import Location from "@/models/Location";
-import { Order } from "@/models/Order";
 import { NextResponse } from "next/server";
 import { locationChannels } from "@/lib/locationChannels";
 
 export async function POST(req: Request) {
-  await connectDB();
-
   const apiKey = req.headers.get("x-driver-key");
   if (apiKey !== process.env.DRIVER_KEY) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -18,27 +13,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Order ID required" }, { status: 400 });
   }
 
-  const id = String(orderId); 
+  const id = String(orderId).trim(); // ⭐ Always stringify
 
-  const loc = await Location.create({
-    driverId,
-    orderId: id,
-    lat,
-    lng,
-  });
-
-
-  await Order.findByIdAndUpdate(id, {
-    driverLocation: { lat, lng },
-    deliveryStatus: "on_the_way",
-  });
-
-  
+  // Broadcast live GPS to SSE clients
   if (locationChannels[id]) {
     locationChannels[id].forEach((client) => {
-      client.write(
-        `data: ${JSON.stringify({ lat, lng, ts: loc.ts })}\n\n`
-      );
+      client.write(`data: ${JSON.stringify({ lat, lng })}\n\n`);
     });
   }
 

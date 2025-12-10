@@ -1,7 +1,7 @@
 import mongoose, { Schema, Document } from "mongoose";
 
 export interface IOrder extends Document {
-  from: string; // customer's WhatsApp number
+  from: string; 
   categoryName?: string;
   itemName?: string;
   qty?: number;
@@ -16,14 +16,14 @@ export interface IOrder extends Document {
   createdAt: Date;
   updatedAt: Date;
 
-  // NEW FIELDS FOR DELIVERY & TRACKING
+
   driverId?: string;
-  trackingToken?: string;          // customer tracking token
-  driverTrackingToken?: string;    // driver tracking token
+  trackingToken?: string;          
+  driverTrackingToken?: string;    
   deliveryStatus?: "assigned" | "picked_up" | "on_the_way" | "delivered";
 
   driverLocation?: { lat: number; lng: number };
-  dropoff?: { lat: number; lng: number }; // customer location
+  dropoff?: { lat: number; lng: number }; 
 }
 
 const OrderSchema = new Schema<IOrder>(
@@ -47,9 +47,7 @@ const OrderSchema = new Schema<IOrder>(
     paymentId: String,
     razorpayOrderId: String,
 
-    // -------------------------
-    // DELIVERY & TRACKING
-    // -------------------------
+    
     driverId: String,
 
     trackingToken: String,

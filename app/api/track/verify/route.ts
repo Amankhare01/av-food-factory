@@ -19,25 +19,24 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: false, error: "invalid orderId" }, { status: 400 });
     }
 
-    const order = await Order.findById(orderId).lean() as IOrder | null;
+    
+    const result = await Order.findById(orderId).lean();
+    const order = result as unknown as IOrder | null;
 
     if (!order) {
       return NextResponse.json({ ok: false, error: "order not found" }, { status: 404 });
     }
 
-    // Validate customer token
-    if (!order.trackingToken || order.trackingToken !== t) {
+   
+    if (order.trackingToken !== t) {
       return NextResponse.json({ ok: false, error: "invalid token" }, { status: 401 });
     }
 
     return NextResponse.json({
       ok: true,
-      order: {
-        address: order.address || null,
-        driverLocation: order.driverLocation || null,
-        deliveryStatus: order.deliveryStatus || null,
-      },
+      address: order.address ?? null,
     });
+
   } catch (err: any) {
     return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
   }
