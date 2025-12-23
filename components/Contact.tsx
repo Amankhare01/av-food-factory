@@ -71,7 +71,7 @@ export default function ContactPage() {
             </li>
             <li className="flex items-center gap-3">
               <FaPhoneAlt className="text-[#0f766e]" />
-              <span>+91 78805 61870</span>
+              <span>+91 88819 04094</span>
             </li>
             <li className="flex items-center gap-3">
               <FaClock className="text-[#0f766e]" />

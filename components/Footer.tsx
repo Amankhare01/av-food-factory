@@ -37,12 +37,12 @@ export default function Footer() {
             <li className="flex items-center gap-3">
               <FaWhatsapp className="text-[#25D366] text-lg" />
               <a
-                href="https://wa.me/917880561870"
+                href="https://wa.me/918881904094"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="hover:text-[#0f766e] transition-colors"
               >
-                +91 788 056 1870
+                +91 88819 04094
               </a>
             </li>
             <li className="flex items-center gap-3">
