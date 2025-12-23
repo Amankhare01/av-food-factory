@@ -1,13 +1,12 @@
-// models/Order.ts
 import mongoose, { Schema, Document } from "mongoose";
 
 export interface IOrder extends Document {
-  from: string; // WhatsApp sender (for sending receipt)
+  from: string; 
   categoryName?: string;
   itemName?: string;
   qty?: number;
   delivery?: "pickup" | "delivery";
-  phone?: string; // delivery phone (user provided)
+  phone?: string;
   address?: string;
   total?: number;
   status?: "created" | "pending" | "paid" | "cancelled";
@@ -16,11 +15,21 @@ export interface IOrder extends Document {
   razorpayOrderId?: string;
   createdAt: Date;
   updatedAt: Date;
+
+
+  driverId?: string;
+  trackingToken?: string;          
+  driverTrackingToken?: string;    
+  deliveryStatus?: "assigned" | "picked_up" | "on_the_way" | "delivered";
+
+  driverLocation?: { lat: number; lng: number };
+  dropoff?: { lat: number; lng: number }; 
 }
 
 const OrderSchema = new Schema<IOrder>(
   {
     from: { type: String, required: true },
+
     categoryName: String,
     itemName: String,
     qty: Number,
@@ -28,12 +37,41 @@ const OrderSchema = new Schema<IOrder>(
     phone: String,
     address: String,
     total: Number,
-    status: { type: String, enum: ["created", "pending", "paid", "cancelled"], default: "created" },
+
+    status: {
+      type: String,
+      enum: ["created", "pending", "paid", "cancelled"],
+      default: "created",
+    },
     paid: { type: Boolean, default: false },
     paymentId: String,
     razorpayOrderId: String,
+
+    
+    driverId: String,
+
+    trackingToken: String,
+
+    driverTrackingToken: String,
+
+    deliveryStatus: {
+      type: String,
+      enum: ["assigned", "picked_up", "on_the_way", "delivered"],
+      default: "assigned",
+    },
+
+    driverLocation: {
+      lat: Number,
+      lng: Number,
+    },
+
+    dropoff: {
+      lat: Number,
+      lng: Number,
+    },
   },
   { timestamps: true }
 );
 
-export const Order = mongoose.models.Order || mongoose.model<IOrder>("Order", OrderSchema);
+export const Order =
+  mongoose.models.Order || mongoose.model<IOrder>("Order", OrderSchema);
