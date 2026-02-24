@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "crypto": "^1.0.1",
-    "framer-motion": "^12.23.22",
+    "framer-motion": "^12.34.3",
     "mapbox-gl": "^3.16.0",
     "mongoose": "^8.19.2",
     "next": "14.2.4",

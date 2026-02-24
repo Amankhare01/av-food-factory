@@ -2446,13 +2446,13 @@ fraction.js@^4.3.7:
   resolved "https://registry.npmjs.org/fraction.js/-/fraction.js-4.3.7.tgz"
   integrity sha512-ZsDfxO51wGAXREY55a7la9LScWpwv9RxIrYABrlvOFBlH/ShPnrtsXeuUIfXKKOVicNxQ+o8JTbJvjS4M89yew==
 
-framer-motion@^12.23.22:
-  version "12.23.22"
-  resolved "https://registry.npmjs.org/framer-motion/-/framer-motion-12.23.22.tgz"
-  integrity sha512-ZgGvdxXCw55ZYvhoZChTlG6pUuehecgvEAJz0BHoC5pQKW1EC5xf1Mul1ej5+ai+pVY0pylyFfdl45qnM1/GsA==
+framer-motion@^12.34.3:
+  version "12.34.3"
+  resolved "https://registry.npmjs.org/framer-motion/-/framer-motion-12.34.3.tgz"
+  integrity sha512-v81ecyZKYO/DfpTwHivqkxSUBzvceOpoI+wLfgCgoUIKxlFKEXdg0oR9imxwXumT4SFy8vRk9xzJ5l3/Du/55Q==
   dependencies:
-    motion-dom "^12.23.21"
-    motion-utils "^12.23.6"
+    motion-dom "^12.34.3"
+    motion-utils "^12.29.2"
     tslib "^2.4.0"
 
 fs.realpath@^1.0.0:
@@ -3344,17 +3344,17 @@ mongoose@^8.19.2:
     ms "2.1.3"
     sift "17.1.3"
 
-motion-dom@^12.23.21:
-  version "12.23.21"
-  resolved "https://registry.npmjs.org/motion-dom/-/motion-dom-12.23.21.tgz"
-  integrity sha512-5xDXx/AbhrfgsQmSE7YESMn4Dpo6x5/DTZ4Iyy4xqDvVHWvFVoV+V2Ri2S/ksx+D40wrZ7gPYiMWshkdoqNgNQ==
+motion-dom@^12.34.3:
+  version "12.34.3"
+  resolved "https://registry.npmjs.org/motion-dom/-/motion-dom-12.34.3.tgz"
+  integrity sha512-sYgFe+pR9aIM7o4fhs2aXtOI+oqlUd33N9Yoxcgo1Fv7M20sRkHtCmzE/VRNIcq7uNJ+qio+Xubt1FXH3pQ+eQ==
   dependencies:
-    motion-utils "^12.23.6"
+    motion-utils "^12.29.2"
 
-motion-utils@^12.23.6:
-  version "12.23.6"
-  resolved "https://registry.npmjs.org/motion-utils/-/motion-utils-12.23.6.tgz"
-  integrity sha512-eAWoPgr4eFEOFfg2WjIsMoqJTW6Z8MTUCgn/GZ3VRpClWBdnbjryiA3ZSNLyxCTmCQx4RmYX6jX1iWHbenUPNQ==
+motion-utils@^12.29.2:
+  version "12.29.2"
+  resolved "https://registry.npmjs.org/motion-utils/-/motion-utils-12.29.2.tgz"
+  integrity sha512-G3kc34H2cX2gI63RqU+cZq+zWRRPSsNIOjpdl9TN4AQwC4sgwYPl/Q/Obf/d53nOm569T0fYK+tcoSV50BWx8A==
 
 mpath@0.9.0:
   version "0.9.0"

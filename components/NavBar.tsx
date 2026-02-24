@@ -44,8 +44,8 @@ export default function NavBar() {
               </a>
             </li>
             <li>
-              <a onClick={() => setOpen(false)} href="#testimonials" className="block hover:text-[#0f766e]">
-                Reviews
+              <a onClick={() => setOpen(false)} href="/gallery" className="block hover:text-[#0f766e]">
+                Gallery
               </a>
             </li>
           <li>
@@ -79,8 +79,8 @@ export default function NavBar() {
               </a>
             </li>
             <li>
-              <a onClick={() => setOpen(false)} href="#testimonials" className="block hover:text-[#0f766e]">
-                Reviews
+              <a onClick={() => setOpen(false)} href="#gallery" className="block hover:text-[#0f766e]">
+                Gallery
               </a>
             </li>
             <li>
