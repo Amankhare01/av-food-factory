@@ -114,7 +114,7 @@ export default function Navbar() {
           <div className="flex flex-col justify-center h-full px-10 pb-10">
             <div className="mb-12">
               <div className="relative w-[140px] h-[48px]">
-                <Image src="/AV-Logo.svg" alt="AV Food Factory" fill className="object-contain" />
+                
               </div>
             </div>
             <nav className="flex flex-col gap-1">

@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
 import USPs from "@/components/USPs";
 import MenuPreview from "@/components/MenuPreview";
 import Testimonials from "@/components/Testimonials";
@@ -8,56 +7,80 @@ import CTA from "@/components/CTA";
 import ContactPage from "@/components/Contact";
 
 export default function Page() {
-  const fadeUp = {
-    hidden: { opacity: 0, y: 40 },
-    visible: { opacity: 1, y: 0 },
-  };
-
   return (
     <>
-      <motion.section
-        initial="hidden"
-        animate="visible"
-        variants={fadeUp}
-        transition={{ duration: 0.8, ease: "easeOut" }}
-      >
+
+      <ScrollReveal />
+
+      {/* ── Contact / Hero ── */}
+      <div className="page-section-1">
         <ContactPage />
-      </motion.section>
+      </div>
 
-      <motion.section
-        initial="hidden"
-        whileInView="visible"
-        variants={fadeUp}
-        transition={{ duration: 0.7, delay: 0.1 }}
-        viewport={{ once: true, amount: 0.2 }}
-      >
+      <div className="section-divider" />
+
+      {/* ── USPs ── */}
+      <div className="page-section-hidden delay-1" data-reveal>
         <USPs />
-      </motion.section>
+      </div>
 
-      <motion.section
-      >
+      <div className="section-divider" />
+
+      {/* ── Menu Preview ── */}
+      <div className="page-section-hidden delay-2" data-reveal>
         <MenuPreview />
-      </motion.section>
+      </div>
 
-      <motion.section
-        initial="hidden"
-        whileInView="visible"
-        variants={fadeUp}
-        transition={{ duration: 0.8, delay: 0.2 }}
-        viewport={{ once: true, amount: 0.2 }}
-      >
+      <div className="section-divider" />
+
+      {/* ── Testimonials ── */}
+      <div className="page-section-hidden delay-3" data-reveal>
         <Testimonials />
-      </motion.section>
+      </div>
 
-      <motion.section
-        initial="hidden"
-        whileInView="visible"
-        variants={fadeUp}
-        transition={{ duration: 0.8, delay: 0.25 }}
-        viewport={{ once: true, amount: 0.2 }}
-      >
+      <div className="section-divider" />
+
+      {/* ── CTA ── */}
+      <div className="page-section-hidden delay-4" data-reveal>
         <CTA />
-      </motion.section>
+      </div>
     </>
   );
+}
+
+/* Tiny inline component that wires up IntersectionObserver */
+function ScrollReveal() {
+  if (typeof window === "undefined") return null;
+
+  const init = () => {
+    const sections = document.querySelectorAll<HTMLElement>("[data-reveal]");
+    if (!sections.length) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.remove("page-section-hidden");
+            entry.target.classList.add("page-section-visible");
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.12 }
+    );
+
+    sections.forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  };
+
+  // Run after mount
+  if (typeof document !== "undefined") {
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", init);
+    } else {
+      requestAnimationFrame(init);
+    }
+  }
+
+  return null;
 }

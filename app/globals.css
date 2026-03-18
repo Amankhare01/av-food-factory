@@ -656,3 +656,415 @@ html, body {
           transition: all 0.35s cubic-bezier(0.4,0,0.2,1);
           transform-origin: center;
         }
+
+                @keyframes pageSlideUp {
+          from { opacity: 0; transform: translateY(40px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes pageReveal {
+          from { opacity: 0; transform: translateY(28px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .page-section-1 {
+          animation: pageSlideUp 0.85s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0.05s both;
+        }
+
+        /* Scroll-triggered sections use IntersectionObserver class toggling */
+        .page-section-hidden {
+          opacity: 0;
+          transform: translateY(32px);
+          transition: opacity 0.75s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                      transform 0.75s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+        .page-section-visible {
+          opacity: 1;
+          transform: translateY(0);
+        }
+
+        .page-section-hidden.delay-1 { transition-delay: 0.1s; }
+        .page-section-hidden.delay-2 { transition-delay: 0.15s; }
+        .page-section-hidden.delay-3 { transition-delay: 0.2s; }
+        .page-section-hidden.delay-4 { transition-delay: 0.25s; }
+
+        /* Subtle gold divider between sections */
+        .section-divider {
+          height: 1px;
+          background: linear-gradient(
+            to right,
+            transparent,
+            rgba(212, 175, 55, 0.15) 30%,
+            rgba(212, 175, 55, 0.15) 70%,
+            transparent
+          );
+        }
+
+
+                @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Jost:wght@300;400;500&display=swap');
+        .ct-font { font-family: 'Cormorant Garamond', serif; }
+        .ct-body { font-family: 'Jost', sans-serif; }
+
+        @keyframes ctPageUp {
+          from { opacity: 0; transform: translateY(28px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes ctLineGrow {
+          from { width: 0; }
+          to   { width: 2.5rem; }
+        }
+        @keyframes ctSuccessPop {
+          0%   { opacity: 0; transform: scale(0.9); }
+          100% { opacity: 1; transform: scale(1); }
+        }
+        @keyframes ctSpinner {
+          to { transform: rotate(360deg); }
+        }
+
+        .ct-line    { animation: ctLineGrow 0.6s ease 0.2s both; }
+        .ct-heading { animation: ctPageUp 0.7s ease 0.3s both; }
+        .ct-left    { animation: ctPageUp 0.7s ease 0.35s both; }
+        .ct-right   { animation: ctPageUp 0.75s ease 0.45s both; }
+        .ct-success { animation: ctSuccessPop 0.5s cubic-bezier(0.34,1.56,0.64,1) both; }
+
+        /* Input base */
+        .ct-input {
+          width: 100%;
+          background: rgba(255,255,255,0.03);
+          border: 1px solid rgba(212,175,55,0.15);
+          color: rgba(255,255,255,0.82);
+          font-family: 'Jost', sans-serif;
+          font-size: 0.82rem;
+          letter-spacing: 0.04em;
+          padding: 0.75rem 1rem;
+          outline: none;
+          transition: border-color 0.3s ease, background 0.3s ease;
+          resize: none;
+        }
+        .ct-input::placeholder {
+          color: rgba(255,255,255,0.2);
+          font-family: 'Jost', sans-serif;
+        }
+        .ct-input:focus {
+          border-color: rgba(212,175,55,0.5);
+          background: rgba(212,175,55,0.04);
+        }
+        /* Date input calendar icon color */
+        .ct-input[type="date"]::-webkit-calendar-picker-indicator {
+          filter: invert(0.7) sepia(1) saturate(2) hue-rotate(5deg);
+          opacity: 0.5;
+          cursor: pointer;
+        }
+
+        /* Underline focus effect on label row */
+        .ct-field { position: relative; }
+        .ct-field-line {
+          position: absolute;
+          bottom: 0; left: 0;
+          height: 1px;
+          background: #d4af37;
+          width: 0;
+          transition: width 0.35s ease;
+          pointer-events: none;
+        }
+        .ct-field.focused .ct-field-line { width: 100%; }
+
+        /* Info card */
+        .ct-info-card {
+          background: rgba(212,175,55,0.04);
+          border: 1px solid rgba(212,175,55,0.12);
+        }
+
+        /* WhatsApp button */
+        .ct-wa-btn {
+          display: inline-flex; align-items: center; gap: 8px;
+          background: rgba(37,211,102,0.12);
+          border: 1px solid rgba(37,211,102,0.3);
+          color: rgba(37,211,102,0.9);
+          font-family: 'Jost', sans-serif;
+          font-size: 0.75rem;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+          padding: 10px 20px;
+          text-decoration: none;
+          transition: all 0.3s ease;
+        }
+        .ct-wa-btn:hover {
+          background: rgba(37,211,102,0.2);
+          border-color: rgba(37,211,102,0.6);
+        }
+
+        /* Submit button */
+        .ct-submit {
+          position: relative; overflow: hidden;
+          width: 100%;
+          background: linear-gradient(135deg, #d4af37, #b8922a);
+          color: #0d0c0b;
+          font-family: 'Jost', sans-serif;
+          font-size: 0.75rem;
+          font-weight: 500;
+          letter-spacing: 0.2em;
+          text-transform: uppercase;
+          padding: 14px;
+          border: none;
+          cursor: pointer;
+          transition: opacity 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
+          box-shadow: 0 8px 28px rgba(212,175,55,0.22);
+        }
+        .ct-submit::before {
+          content: '';
+          position: absolute; inset: 0;
+          background: rgba(255,255,255,0.12);
+          opacity: 0;
+          transition: opacity 0.3s ease;
+        }
+        .ct-submit:hover:not(:disabled)::before { opacity: 1; }
+        .ct-submit:hover:not(:disabled) {
+          transform: translateY(-1px);
+          box-shadow: 0 12px 36px rgba(212,175,55,0.32);
+        }
+        .ct-submit:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+        .ct-spinner {
+          display: inline-block;
+          width: 13px; height: 13px;
+          border: 1.5px solid rgba(13,12,11,0.3);
+          border-top-color: #0d0c0b;
+          border-radius: 50%;
+          animation: ctSpinner 0.7s linear infinite;
+          vertical-align: middle;
+          margin-right: 8px;
+        }
+
+        /* Checkbox */
+        .ct-checkbox {
+          appearance: none;
+          width: 14px; height: 14px;
+          border: 1px solid rgba(212,175,55,0.35);
+          background: transparent;
+          cursor: pointer;
+          flex-shrink: 0;
+          margin-top: 2px;
+          position: relative;
+          transition: border-color 0.2s ease;
+        }
+        .ct-checkbox:checked {
+          background: rgba(212,175,55,0.15);
+          border-color: #d4af37;
+        }
+        .ct-checkbox:checked::after {
+          content: '';
+          position: absolute;
+          top: 2px; left: 4px;
+          width: 4px; height: 7px;
+          border: 1px solid #d4af37;
+          border-top: none; border-left: none;
+          transform: rotate(45deg);
+        }
+
+                @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Jost:wght@300;400;500&display=swap');
+        .pp-font { font-family: 'Cormorant Garamond', serif; }
+        .pp-body { font-family: 'Jost', sans-serif; }
+
+        @keyframes ppFadeUp {
+          from { opacity: 0; transform: translateY(24px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes ppLineGrow {
+          from { width: 0; }
+          to   { width: 2.5rem; }
+        }
+
+        .pp-line    { animation: ppLineGrow 0.6s ease 0.2s both; }
+        .pp-heading { animation: ppFadeUp 0.7s ease 0.3s both; }
+        .pp-meta    { animation: ppFadeUp 0.6s ease 0.45s both; }
+        .pp-body-wrap { animation: ppFadeUp 0.7s ease 0.5s both; }
+
+        .pp-section {
+          padding: 2rem 0;
+          border-bottom: 1px solid rgba(212,175,55,0.08);
+        }
+        .pp-section:last-child { border-bottom: none; }
+
+        .pp-section-title {
+          font-family: 'Cormorant Garamond', serif;
+          font-weight: 300;
+          color: rgba(255,255,255,0.9);
+          font-size: 1.35rem;
+          letter-spacing: 0.01em;
+          margin-bottom: 1rem;
+          display: flex;
+          align-items: center;
+          gap: 0.85rem;
+        }
+
+        .pp-section-num {
+          font-family: 'Jost', sans-serif;
+          font-size: 0.65rem;
+          color: rgba(212,175,55,0.45);
+          letter-spacing: 0.2em;
+          flex-shrink: 0;
+          padding-top: 2px;
+        }
+
+        .pp-section p,
+        .pp-section li {
+          font-family: 'Jost', sans-serif;
+          font-size: 0.875rem;
+          color: rgba(255,255,255,0.42);
+          line-height: 1.9;
+          letter-spacing: 0.03em;
+        }
+
+        .pp-list {
+          list-style: none;
+          padding: 0;
+          margin: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 0.75rem;
+        }
+        .pp-list li {
+          display: flex;
+          align-items: flex-start;
+          gap: 10px;
+        }
+        .pp-list li::before {
+          content: '';
+          display: block;
+          width: 4px;
+          height: 4px;
+          border-radius: 50%;
+          background: #d4af37;
+          opacity: 0.5;
+          margin-top: 9px;
+          flex-shrink: 0;
+        }
+
+        .pp-strong {
+          color: rgba(255,255,255,0.7);
+          font-weight: 500;
+        }
+
+        .pp-link {
+          color: rgba(212,175,55,0.65);
+          text-decoration: none;
+          transition: color 0.2s ease;
+          border-bottom: 1px solid rgba(212,175,55,0.2);
+          padding-bottom: 1px;
+        }
+        .pp-link:hover { color: #d4af37; border-color: #d4af37; }
+
+        .pp-contact-block {
+          position: relative;
+          background: rgba(212,175,55,0.03);
+          border: 1px solid rgba(212,175,55,0.12);
+          padding: 1.5rem 1.75rem;
+          font-family: 'Jost', sans-serif;
+          font-size: 0.85rem;
+          color: rgba(255,255,255,0.42);
+          line-height: 2;
+          letter-spacing: 0.03em;
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
+
+                @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Jost:wght@300;400;500&display=swap');
+        .tm-font { font-family: 'Cormorant Garamond', serif; }
+        .tm-body { font-family: 'Jost', sans-serif; }
+
+        @keyframes tmFadeUp  { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes tmLineGrow { from { width: 0; } to { width: 2.5rem; } }
+
+        .tm-line    { animation: tmLineGrow 0.6s ease 0.2s both; }
+        .tm-heading { animation: tmFadeUp 0.7s ease 0.3s both; }
+        .tm-meta    { animation: tmFadeUp 0.6s ease 0.45s both; }
+        .tm-card    { animation: tmFadeUp 0.7s ease 0.5s both; }
+
+        .tm-section {
+          padding: 2rem 0;
+          border-bottom: 1px solid rgba(212,175,55,0.08);
+        }
+        .tm-section:last-child { border-bottom: none; }
+
+        .tm-section-title {
+          font-family: 'Cormorant Garamond', serif;
+          font-weight: 300;
+          color: rgba(255,255,255,0.88);
+          font-size: 1.35rem;
+          letter-spacing: 0.01em;
+          margin-bottom: 1rem;
+          display: flex;
+          align-items: center;
+          gap: 0.85rem;
+        }
+        .tm-section-num {
+          font-family: 'Jost', sans-serif;
+          font-size: 0.65rem;
+          color: rgba(212,175,55,0.45);
+          letter-spacing: 0.2em;
+          flex-shrink: 0;
+          padding-top: 2px;
+        }
+
+        .tm-section p,
+        .tm-section li {
+          font-family: 'Jost', sans-serif;
+          font-size: 0.875rem;
+          color: rgba(255,255,255,0.42);
+          line-height: 1.9;
+          letter-spacing: 0.03em;
+        }
+
+        .tm-list {
+          list-style: none;
+          padding: 0; margin: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 0.75rem;
+        }
+        .tm-list li {
+          display: flex;
+          align-items: flex-start;
+          gap: 10px;
+        }
+        .tm-list li::before {
+          content: '';
+          display: block;
+          width: 4px; height: 4px;
+          border-radius: 50%;
+          background: #d4af37;
+          opacity: 0.5;
+          margin-top: 9px;
+          flex-shrink: 0;
+        }
+
+        .tm-strong {
+          color: rgba(255,255,255,0.7);
+          font-weight: 500;
+          font-family: 'Jost', sans-serif;
+        }
+
+        .tm-link {
+          color: rgba(212,175,55,0.65);
+          text-decoration: none;
+          border-bottom: 1px solid rgba(212,175,55,0.2);
+          padding-bottom: 1px;
+          transition: color 0.2s ease, border-color 0.2s ease;
+        }
+        .tm-link:hover { color: #d4af37; border-color: #d4af37; }
+
+        .tm-contact-block {
+          position: relative;
+          background: rgba(212,175,55,0.03);
+          border: 1px solid rgba(212,175,55,0.12);
+          padding: 1.5rem 1.75rem;
+          font-family: 'Jost', sans-serif;
+          font-size: 0.85rem;
+          color: rgba(255,255,255,0.42);
+          line-height: 2;
+          letter-spacing: 0.03em;
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
