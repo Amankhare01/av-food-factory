@@ -48,7 +48,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${inter.variable} ${marcellus.variable}`}>
-      <body className="bg-nawab-ivory text-nawab-ink antialiased">
+      <body className="bg-black text-nawab-ivory antialiased">
         <NavBar />
         {children}
         <WhatsAppButton />
