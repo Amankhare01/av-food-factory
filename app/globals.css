@@ -1070,3 +1070,142 @@ html, body {
           flex-direction: column;
           gap: 2px;
         }
+
+
+                @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Jost:wght@300;400;500&display=swap');
+        .gl-font { font-family: 'Cormorant Garamond', serif; }
+        .gl-body { font-family: 'Jost', sans-serif; }
+
+        @keyframes glFadeUp {
+          from { opacity: 0; transform: translateY(28px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes glLineGrow {
+          from { width: 0; }
+          to   { width: 2.5rem; }
+        }
+        @keyframes glModalIn {
+          from { opacity: 0; transform: scale(0.94); }
+          to   { opacity: 1; transform: scale(1); }
+        }
+        @keyframes glModalOut {
+          from { opacity: 1; transform: scale(1); }
+          to   { opacity: 0; transform: scale(0.94); }
+        }
+        @keyframes glOverlayIn  { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes glOverlayOut { from { opacity: 1; } to { opacity: 0; } }
+
+        .gl-line    { animation: glLineGrow 0.6s ease 0.2s both; }
+        .gl-heading { animation: glFadeUp 0.7s ease 0.3s both; }
+        .gl-sub     { animation: glFadeUp 0.7s ease 0.45s both; }
+
+        .gl-card {
+          position: relative;
+          overflow: hidden;
+          border: 1px solid rgba(212,175,55,0.1);
+          background: rgba(255,255,255,0.02);
+          cursor: pointer;
+          transition: border-color 0.4s ease, transform 0.4s cubic-bezier(0.25,0.46,0.45,0.94), box-shadow 0.4s ease;
+        }
+        .gl-card:hover {
+          border-color: rgba(212,175,55,0.4);
+          transform: translateY(-4px);
+          box-shadow: 0 24px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(212,175,55,0.12);
+        }
+
+        .gl-card-img {
+          transition: transform 0.7s cubic-bezier(0.25,0.46,0.45,0.94), filter 0.4s ease;
+        }
+        .gl-card:hover .gl-card-img {
+          transform: scale(1.07);
+          filter: brightness(0.6) !important;
+        }
+
+        .gl-card-overlay {
+          position: absolute; inset: 0;
+          background: linear-gradient(to top, rgba(13,12,11,0.85) 0%, rgba(13,12,11,0.1) 55%, transparent 100%);
+          transition: opacity 0.4s ease;
+        }
+        .gl-card:hover .gl-card-overlay { opacity: 1.0; }
+
+        .gl-card-caption {
+          position: absolute; bottom: 0; left: 0; right: 0;
+          padding: 1.25rem 1.25rem 1.1rem;
+          transform: translateY(6px);
+          opacity: 0;
+          transition: all 0.35s ease;
+        }
+        .gl-card:hover .gl-card-caption {
+          transform: translateY(0);
+          opacity: 1;
+        }
+
+        .gl-card-tag {
+          position: absolute; top: 14px; left: 14px;
+          display: flex; align-items: center; gap: 6px;
+          opacity: 0;
+          transition: opacity 0.35s ease 0.05s, transform 0.35s ease 0.05s;
+          transform: translateX(-6px);
+        }
+        .gl-card:hover .gl-card-tag {
+          opacity: 1;
+          transform: translateX(0);
+        }
+
+        .gl-corner-tl, .gl-corner-br {
+          position: absolute; width: 36px; height: 36px;
+          opacity: 0; transition: opacity 0.4s ease; pointer-events: none;
+        }
+        .gl-corner-tl { top: 0; left: 0; border-top: 1px solid rgba(212,175,55,0.5); border-left: 1px solid rgba(212,175,55,0.5); }
+        .gl-corner-br { bottom: 0; right: 0; border-bottom: 1px solid rgba(212,175,55,0.5); border-right: 1px solid rgba(212,175,55,0.5); }
+        .gl-card:hover .gl-corner-tl,
+        .gl-card:hover .gl-corner-br { opacity: 1; }
+
+        .gl-view-btn {
+          display: inline-flex; align-items: center; gap: 8px;
+          border: 1px solid rgba(212,175,55,0.5);
+          padding: 6px 14px;
+          font-family: 'Jost', sans-serif;
+          font-size: 0.65rem;
+          letter-spacing: 0.2em;
+          text-transform: uppercase;
+          color: rgba(212,175,55,0.9);
+          transition: background 0.25s ease;
+        }
+        .gl-view-btn:hover { background: rgba(212,175,55,0.1); }
+
+        /* Modal */
+        .gl-modal-overlay {
+          position: fixed; inset: 0; z-index: 100;
+          background: rgba(5,4,3,0.92);
+          backdrop-filter: blur(18px);
+          display: flex; align-items: center; justify-content: center;
+          padding: 1.25rem;
+        }
+        .gl-modal-overlay.in  { animation: glOverlayIn  0.3s ease both; }
+        .gl-modal-overlay.out { animation: glOverlayOut 0.28s ease both; }
+        .gl-modal-inner {
+          position: relative;
+          width: 100%;
+          max-width: 860px;
+          max-height: calc(100vh - 2.5rem);
+          display: flex;
+          flex-direction: column;
+        }
+        .gl-modal-inner.in  { animation: glModalIn  0.35s cubic-bezier(0.25,0.46,0.45,0.94) both; }
+        .gl-modal-inner.out { animation: glModalOut 0.28s cubic-bezier(0.25,0.46,0.45,0.94) both; }
+
+        .gl-modal-nav {
+          display: flex; align-items: center; justify-content: center;
+          width: 44px; height: 44px;
+          border: 1px solid rgba(212,175,55,0.3);
+          background: rgba(212,175,55,0.06);
+          color: rgba(212,175,55,0.85);
+          cursor: pointer;
+          transition: all 0.25s ease;
+          flex-shrink: 0;
+        }
+        .gl-modal-nav:hover {
+          border-color: rgba(212,175,55,0.7);
+          background: rgba(212,175,55,0.14);
+        }

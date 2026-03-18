@@ -143,12 +143,26 @@ export default function Navbar() {
               style={{ background: "linear-gradient(135deg, #d4af37, #b8922a)", color: "#0d0c0b", fontWeight: 500, animationDelay: `${navLinks.length * 0.07 + 0.15}s`, boxShadow: "0 8px 32px rgba(212,175,55,0.25)", textDecoration: "none" }}>
               Reserve Your Event
             </Link>
-            <p className="mobile-item mt-6 link-font text-xs tracking-widest text-white/30 text-center"
-              style={{ animationDelay: `${navLinks.length * 0.07 + 0.25}s` }}>
-              <a href="tel:+918881904094" className="hover:text-white transition">+91 88819 04094</a>
-              &nbsp;·&nbsp;
-              <a href="mailto:support@avfoodfactory.com" className="hover:text-white transition">support@avfoodfactory.com</a>
-            </p>
+<p
+  className="mobile-item mt-6 link-font text-xs tracking-widest text-white/30 text-center flex flex-col sm:flex-row sm:items-center sm:justify-center gap-1 sm:gap-2"
+  style={{ animationDelay: `${navLinks.length * 0.07 + 0.25}s` }}
+>
+  <a
+    href="tel:+918881904094"
+    className="hover:text-white transition break-all"
+  >
+    +91 88819 04094
+  </a>
+
+  <span className="hidden sm:inline">&nbsp;·&nbsp;</span>
+
+  <a
+    href="mailto:support@avfoodfactory.com"
+    className="hover:text-white transition break-all"
+  >
+    support@avfoodfactory.com
+  </a>
+</p>
           </div>
         </div>
       )}
