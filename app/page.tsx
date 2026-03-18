@@ -7,6 +7,7 @@ import USPs from "@/components/USPs";
 import MenuPreview from "@/components/MenuPreview";
 import Testimonials from "@/components/Testimonials";
 import CTA from "@/components/CTA";
+import HeroSection from "@/components/Herosection";
 
 export default function Page() {
   const fadeUp = {
@@ -22,7 +23,7 @@ export default function Page() {
         variants={fadeUp}
         transition={{ duration: 0.8, ease: "easeOut" }}
       >
-        <Hero />
+        <HeroSection />
       </motion.section>
 
       <motion.section

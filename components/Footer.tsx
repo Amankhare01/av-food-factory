@@ -1,115 +1,143 @@
-import Image from "next/image";
 import Link from "next/link";
 import { FaWhatsapp, FaEnvelope, FaMapMarkerAlt, FaFacebook, FaInstagram } from "react-icons/fa";
 
 export default function Footer() {
   return (
-    <footer id="contact" className="border-t border-black/5 bg-[#faf6f1]">
-      {/* Top Section */}
-      <div className="mx-auto max-w-7xl px-6 py-14 grid sm:grid-cols-2 md:grid-cols-3 gap-10">
-        {/* Brand Info */}
-        <div>
-          <Link href="/" className="group inline-flex items-center gap-2">
-            <div className="relative w-[140px] h-[50px] sm:w-[160px] sm:h-[60px]">
-              <Image
-                src="/logo.svg"
-                alt="AV Food Factory Logo"
-                fill
-                className="object-contain"
-                priority
-              />
-            </div>
-          </Link>
-          <p className="text-sm text-black/70 mt-3 leading-relaxed max-w-xs">
-            Dastarkhwan-style catering rooted in Lucknow’s Nawabi hospitality.
-            From grand weddings to cozy family feasts — we bring taste and tradition together.
-          </p>
-          <div className="flex gap-4 mt-6">
-            <Link href="https://www.facebook.com/avfoodfactory/" className="hover:text-green-900 text-"><FaFacebook size={22} /></Link>
-            <Link href="https://www.instagram.com/avfoodfactory/" className="hover:text-green-900"><FaInstagram size={22} /></Link>
-          </div>
-        </div>
+    <>
+      <footer
+        id="contact"
+        className="relative"
+        style={{ background: "#0d0c0b" }}
+      >
+        {/* Top rule */}
+        <div className="ft-divider" />
 
-        {/* Contact */}
-        <div>
-          <h4 className="font-semibold text-lg mb-4 text-[#0f766e]">Contact Us</h4>
-          <ul className="text-sm text-black/70 space-y-3">
-            <li className="flex items-center gap-3">
-              <FaWhatsapp className="text-[#25D366] text-lg" />
-              <a
-                href="https://wa.me/918881904094"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-[#0f766e] transition-colors"
-              >
-                +91 88819 04094
-              </a>
-            </li>
-            <li className="flex items-center gap-3">
-              <FaEnvelope className="text-[#0f766e] text-lg" />
-              <a
-                href="mailto:support@avfoodfactory.com"
-                className="hover:text-[#0f766e] transition-colors"
-              >
-                support@avfoodfactory.com
-              </a>
-            </li>
-            <li className="flex items-start gap-3">
-              <FaMapMarkerAlt className="text-[#0f766e] text-lg mt-1" />
-              <span className="leading-relaxed">
-                First Floor, Priyadarshini Apartment, 05, Wazir Hasan Road,
-                Hazratganj, Lucknow, Uttar Pradesh 226001
+        {/* Dot grid */}
+        <div className="absolute inset-0 pointer-events-none"
+          style={{ backgroundImage: "radial-gradient(rgba(212,175,55,0.025) 1px, transparent 1px)", backgroundSize: "32px 32px" }} />
+
+        {/* ── Main grid ── */}
+        <div className="relative mx-auto max-w-7xl px-6 sm:px-12 lg:px-20 py-16 grid sm:grid-cols-2 lg:grid-cols-3 gap-12 lg:gap-16">
+
+          {/* ── Brand ── */}
+          <div className="sm:col-span-2 lg:col-span-1">
+            {/* Logo wordmark */}
+            <Link href="/" className="inline-flex items-center gap-2 group mb-5 select-none">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <path d="M10 1L12 7.5H19L13.5 11.5L15.5 18L10 14L4.5 18L6.5 11.5L1 7.5H8L10 1Z"
+                  fill="#d4af37" fillOpacity="0.9" />
+              </svg>
+              <span className="ft-font font-light text-white" style={{ fontSize: "1.5rem", letterSpacing: "0.04em" }}>
+                <span style={{
+                  background: "linear-gradient(90deg,#d4af37,#f5d980 45%,#b8922a)",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  backgroundClip: "text",
+                }}>AV</span>
+                {" "}<span className="italic">Food Factory</span>
               </span>
-            </li>
-          </ul>
+            </Link>
+
+            <p className="ft-body text-sm leading-relaxed text-white/35 max-w-xs mb-7"
+              style={{ letterSpacing: "0.03em" }}>
+              Dastarkhwan-style catering rooted in Lucknow's Nawabi hospitality. From grand weddings to cozy family feasts — we bring taste and tradition together.
+            </p>
+
+            {/* Social */}
+            <div className="flex items-center gap-3">
+              <Link href="https://www.facebook.com/avfoodfactory/" target="_blank" rel="noopener noreferrer" className="ft-social" aria-label="Facebook">
+                <FaFacebook size={14} />
+              </Link>
+              <Link href="https://www.instagram.com/avfoodfactory/" target="_blank" rel="noopener noreferrer" className="ft-social" aria-label="Instagram">
+                <FaInstagram size={14} />
+              </Link>
+              <Link href="https://wa.me/918881904094" target="_blank" rel="noopener noreferrer" className="ft-social" aria-label="WhatsApp">
+                <FaWhatsapp size={14} />
+              </Link>
+            </div>
+          </div>
+
+          {/* ── Contact ── */}
+          <div>
+            <div className="mb-1 h-px w-6" style={{ background: "rgba(212,175,55,0.4)" }} />
+            <h4 className="ft-font font-light text-white mt-4 mb-6" style={{ fontSize: "1.25rem", letterSpacing: "0.02em" }}>
+              Get in <span className="italic">Touch</span>
+            </h4>
+
+            <ul className="ft-body space-y-5">
+              <li>
+                <a href="https://wa.me/918881904094" target="_blank" rel="noopener noreferrer" className="ft-contact-row">
+                  <FaWhatsapp size={14} style={{ color: "#d4af37", marginTop: "3px", flexShrink: 0 }} />
+                  <span>+91 88819 04094</span>
+                </a>
+              </li>
+              <li>
+                <a href="mailto:support@avfoodfactory.com" className="ft-contact-row">
+                  <FaEnvelope size={14} style={{ color: "#d4af37", marginTop: "3px", flexShrink: 0 }} />
+                  <span>support@avfoodfactory.com</span>
+                </a>
+              </li>
+              <li className="ft-contact-row">
+                <FaMapMarkerAlt size={14} style={{ color: "#d4af37", marginTop: "3px", flexShrink: 0 }} />
+                <span>
+                  First Floor, Priyadarshini Apartment,<br />
+                  05 Wazir Hasan Road, Hazratganj,<br />
+                  Lucknow, UP 226001
+                </span>
+              </li>
+            </ul>
+          </div>
+
+          {/* ── Quick Links ── */}
+          <div>
+            <div className="mb-1 h-px w-6" style={{ background: "rgba(212,175,55,0.4)" }} />
+            <h4 className="ft-font font-light text-white mt-4 mb-6" style={{ fontSize: "1.25rem", letterSpacing: "0.02em" }}>
+              Quick <span className="italic">Links</span>
+            </h4>
+
+            <ul className="ft-body space-y-4">
+              {[
+                { label: "Services", href: "#services" },
+                { label: "Menu", href: "#menu" },
+                { label: "Testimonials", href: "#testimonials" },
+                { label: "Contact", href: "#contact" },
+                { label: "Terms & Conditions", href: "/terms" },
+                { label: "Privacy Policy", href: "/privacy" },
+              ].map((item) => (
+                <li key={item.label}>
+                  <Link href={item.href} className="ft-link text-sm" style={{ letterSpacing: "0.06em" }}>
+                    {item.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
         </div>
 
-        {/* Quick Links */}
-        <div>
-          <h4 className="font-semibold text-lg mb-4 text-[#0f766e]">Quick Links</h4>
-          <ul className="text-sm text-black/70 space-y-3">
-            <li>
-              <Link href="#services" className="hover:text-[#0f766e] transition-colors">
-                Services
-              </Link>
-            </li>
-            <li>
-              <Link href="#contact" className="hover:text-[#0f766e] transition-colors">
-                Contact
-              </Link>
-            </li>
-            <li>
-              <Link href="/terms" className="hover:text-[#0f766e] transition-colors">
-                Terms & Conditions
-              </Link>
-            </li>
-          </ul>
-        </div>
-      </div>
+        {/* ── Bottom bar ── */}
+        <div className="ft-divider" />
+        <div className="relative mx-auto max-w-7xl px-6 sm:px-12 lg:px-20 py-6 flex flex-col md:flex-row items-center justify-between gap-3">
 
-      {/* Bottom Section */}
-      <div className="border-t border-black/10">
-        <div className="mx-auto max-w-7xl px-6 py-6 flex flex-col md:flex-row items-center justify-between gap-3 text-sm text-black/60">
-          <div>© {new Date().getFullYear()} AV Food Factory • Lucknow</div>
-          <div className="text-center md:text-right space-x-2">
-            <span>Developed by</span>
+          <p className="ft-body text-xs text-white/20" style={{ letterSpacing: "0.12em" }}>
+            © {new Date().getFullYear()} AV Food Factory &nbsp;·&nbsp; Lucknow
+          </p>
+
+          <p className="ft-body text-xs text-white/20 text-center md:text-right" style={{ letterSpacing: "0.06em" }}>
+            Developed by{" "}
             <Link
               href="https://digipants.com/"
               target="_blank"
-              className="text-[#C5A46D] font-medium hover:underline"
+              rel="noopener noreferrer"
+              className="ft-link"
+              style={{ color: "rgba(212,175,55,0.55)" }}
             >
               DigiPants Network Pvt.
             </Link>
-            <span>·</span>
-            <Link
-              href="/privacy"
-              className="underline decoration-transparent hover:decoration-[#C5A46D] transition-colors"
-            >
-              Privacy Policy
-            </Link>
-          </div>
+          </p>
+
         </div>
-      </div>
-    </footer>
+      </footer>
+    </>
   );
 }
