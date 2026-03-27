@@ -22,7 +22,7 @@
     {
         id: 3,
         image:
-        "https://images.unsplash.com/photo-1567521464027-f127ff144326?w=1600&q=80",
+        "https://images.unsplash.com/photo-1772127822525-7eda37383b9f?q=80",
         caption: "Canape & Cocktail",
         subtitle: "Elegant bite-sized creations to impress every palate",
         tag: "Cocktail Hour",
@@ -30,7 +30,7 @@
     {
         id: 4,
         image:
-        "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=1600&q=80",
+        "https://images.unsplash.com/photo-1583338917496-7ea264c374ce?q=80",
         caption: "Grand Buffet",
         subtitle: "Lavish spreads curated for celebrations at any scale",
         tag: "Buffet Mastery",
@@ -111,14 +111,14 @@
                 src={slide.image}
                 alt={slide.caption}
                 className={`w-full h-full object-cover img-ken ${i !== current ? "opacity-0" : ""}`}
-                style={{ filter: "brightness(0.55)" }}
+                style={{ filter: "brightness(0.80)" }}
                 />
             </div>
             ))}
 
             {/* ── Gradient overlay ── */}
             <div className="absolute inset-0 z-30 pointer-events-none"
-            style={{ background: "linear-gradient(to right, rgba(13,12,11,0.80) 38%, rgba(13,12,11,0.15) 100%)" }} />
+            style={{ background: "linear-gradient(to right, rgba(13,12,11,0.60) 38%, rgba(13,12,11,0.15) 100%)" }} />
             <div className="absolute bottom-0 left-0 right-0 h-40 z-30 pointer-events-none"
             style={{ background: "linear-gradient(to top, rgba(13,12,11,0.9), transparent)" }} />
 
@@ -155,7 +155,7 @@
                 </h1>
 
                 {/* Subtitle */}
-                <p className="sub body-font font-light text-white/60 mb-10 max-w-md"
+                <p className="sub body-font font-light text-white/90 mb-10 max-w-md"
                 style={{ fontSize: "clamp(0.9rem, 1.5vw, 1.05rem)", lineHeight: 1.75, letterSpacing: "0.03em" }}>
                 {slides[current].subtitle}
                 </p>
@@ -173,7 +173,7 @@
                     Reserve Your Event
                 </button>
                 <button
-                    className="body-font font-light text-sm tracking-widest uppercase text-white/70 hover:text-white transition-colors duration-300 flex items-center gap-3"
+                    className="body-font font-light text-sm tracking-widest uppercase text-white/90 hover:text-white transition-colors duration-300 flex items-center gap-3"
                     style={{ letterSpacing: "0.15em" }}>
                     View Menu
                     <svg width="20" height="10" viewBox="0 0 20 10" fill="none">

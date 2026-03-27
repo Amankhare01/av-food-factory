@@ -72,7 +72,7 @@ export default function Navbar() {
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                 <path d="M2 1h3l1 3-1.5 1a7 7 0 003.5 3.5L9.5 7l3 1v3a1 1 0 01-1 1A10 10 0 011 2a1 1 0 011-1z" fill="#d4af37" />
               </svg>
-              <a href="tel:+918881904094" className="link-font text-xs tracking-wider text-white/40 hover:text-white transition-colors duration-200">
+              <a href="tel:+918881904094" className="link-font text-xs tracking-wider text-white/90 hover:text-white transition-colors duration-200">
                 +91 88819 04094
               </a>
             </div>
